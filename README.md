@@ -1,6 +1,7 @@
 # Application de Suivi de Projets Scolaires
 
-Une application desktop pour gérer et répartir des projets scolaires entre des élèves avec export en Excel/LibreOffice Calc.
+Enseignant en STI2D en spécialité IT, j'avais besoin d'une application qui permette de gérer et évaluer des projets
+
 
 ## Fonctionnalités
 
@@ -9,9 +10,13 @@ Une application desktop pour gérer et répartir des projets scolaires entre des
 - ✅ Configurer la taille des groupes (binômes, trinômes, etc.)
 - ✅ Gérer une liste d'élèves
 - ✅ Répartition **manuelle** des élèves dans les groupes
+- Création des taches et de leur notation
 - ✅ Créer les groupes automatiquement
-- ✅ Export en Excel/LibreOffice Calc (.xlsx)
+- ✅ Export en LibreOffice Calc (.ods)
 - ✅ Persistance des données (SQLite)
+- Suivi de présence et évaluation par séance (journal de bord, GANTT, travail)
+- Evaluation de toutes les taches
+
 
 ## Installation
 
