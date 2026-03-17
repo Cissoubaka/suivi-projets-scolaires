@@ -6,12 +6,11 @@ from tabs.groups_tab import GroupsTab
 from tabs.rating_tab import RatingTab
 from tabs.task_assignment_tab import TaskAssignmentTab
 from tabs.attendance_tab import AttendanceTab
-from tabs.directory_tab import DirectoryTab
 from tabs.export_tab import ExportTab
 
 __all__ = [
     'ProjectsTab', 'StudentsTab', 'GroupsTab', 'RatingTab',
-    'TaskAssignmentTab', 'AttendanceTab', 'DirectoryTab', 'ExportTab'
+    'TaskAssignmentTab', 'AttendanceTab', 'ExportTab'
 ]
 
 

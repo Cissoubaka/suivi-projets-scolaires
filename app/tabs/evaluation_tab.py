@@ -755,6 +755,7 @@ class EvaluationTab(TabBase):
             table.setCellWidget(row, 4 + len(categories), widget)
         
         table.resizeRowsToContents()
+        table.resizeColumnToContents(0)  # Adapter seulement la colonne Répertoire
         
         # Sauvegarder la référence à la table et autres références
         self.eval_table = table

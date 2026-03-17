@@ -62,10 +62,18 @@ class ProjectsTab(TabBase):
 
     def add_project(self):
         """Ajouter un nouveau projet"""
-        dialog = ProjectDialog(self.parent)
+        dialog = ProjectDialog(self.parent, db=self.db)
         if dialog.exec():
             data = dialog.get_data()
-            self.db.add_project(data['name'], data['description'], data['repetitions'], data['num_groups'])
+            self.db.add_project(
+                data['name'], 
+                data['description'], 
+                data['repetitions'], 
+                data['num_groups'],
+                data['source_directory'],
+                data['dest_directory'],
+                data['prefix']
+            )
             self.refresh_projects_list()
             
             # Notifier les autres onglets
@@ -78,11 +86,19 @@ class ProjectsTab(TabBase):
             QMessageBox.warning(self.parent, "Erreur", "Veuillez sélectionner un projet !")
             return
         project = self.db.get_project(self.current_project_id)
-        dialog = ProjectDialog(self.parent, project)
+        dialog = ProjectDialog(self.parent, project, db=self.db)
         if dialog.exec():
             data = dialog.get_data()
-            self.db.update_project(self.current_project_id, data['name'], data['description'],
-                                   data['repetitions'], data['num_groups'])
+            self.db.update_project(
+                self.current_project_id,
+                data['name'], 
+                data['description'],
+                data['repetitions'], 
+                data['num_groups'],
+                data['source_directory'],
+                data['dest_directory'],
+                data['prefix']
+            )
             self.refresh_projects_list()
             
             # Notifier les autres onglets

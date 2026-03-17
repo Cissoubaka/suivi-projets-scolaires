@@ -369,6 +369,7 @@ class TaskAssignmentTab(TabBase):
             self.update_task_total(group_id, student_id)
         
         table.resizeRowsToContents()
+        table.resizeColumnToContents(0)  # Adapter seulement la colonne Répertoire
         
         self.task_scroll_layout.addWidget(table, 1)
 

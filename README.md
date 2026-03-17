@@ -12,7 +12,8 @@ Enseignant en STI2D en spécialité IT, j'avais besoin d'une application qui per
 - ✅ Répartition **manuelle** des élèves dans les groupes
 - Création des taches et de leur notation
 - ✅ Créer les groupes automatiquement
-- ✅ Export en LibreOffice Calc (.ods)
+- configuration des répertoires
+- ✅ Export en LibreOffice Calc (.ods) directement dans le repertoire de travail des eleves
 - ✅ Persistance des données (SQLite)
 - Suivi de présence et évaluation par séance (journal de bord, GANTT, travail)
 - Evaluation de toutes les taches

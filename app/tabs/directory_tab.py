@@ -4,7 +4,7 @@ import os
 import shutil
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
-    QComboBox, QMessageBox, QFileDialog
+    QComboBox, QMessageBox
 )
 from tabs.base import TabBase
 
@@ -20,6 +20,15 @@ class DirectoryTab(TabBase):
         widget = QWidget()
         layout = QVBoxLayout()
 
+        # Info sur la configuration
+        info_label = QLabel(
+            "Configurez le répertoire source, le répertoire destination et le préfixe\n"
+            "lors de la création ou l'édition d'un projet (onglet Projets)."
+        )
+        info_label.setStyleSheet("background-color: #e8f4f8; padding: 10px; border-radius: 5px;")
+        layout.addWidget(info_label)
+        layout.addWidget(QLabel(""))
+
         # Sélection du projet et répétition
         project_layout = QHBoxLayout()
         project_layout.addWidget(QLabel("Projet :"))
@@ -32,38 +41,33 @@ class DirectoryTab(TabBase):
         project_layout.addWidget(self.dir_repetition_combo)
         layout.addLayout(project_layout)
 
-        # Choix du répertoire source
+        # Affichage du répertoire source (lecture seule)
         source_layout = QHBoxLayout()
         source_layout.addWidget(QLabel("Répertoire source :"))
         self.source_dir_input = QLineEdit()
         self.source_dir_input.setReadOnly(True)
         source_layout.addWidget(self.source_dir_input)
-        browse_source_btn = QPushButton("Parcourir...")
-        browse_source_btn.clicked.connect(self.browse_source_directory)
-        source_layout.addWidget(browse_source_btn)
         layout.addLayout(source_layout)
 
-        # Choix du répertoire destination
+        # Affichage du répertoire destination (lecture seule)
         dest_layout = QHBoxLayout()
         dest_layout.addWidget(QLabel("Répertoire destination :"))
         self.dest_dir_input = QLineEdit()
         self.dest_dir_input.setReadOnly(True)
         dest_layout.addWidget(self.dest_dir_input)
-        browse_dest_btn = QPushButton("Parcourir...")
-        browse_dest_btn.clicked.connect(self.browse_dest_directory)
-        dest_layout.addWidget(browse_dest_btn)
         layout.addLayout(dest_layout)
 
-        # Configuration du préfixe
+        # Affichage du préfixe (lecture seule)
         prefix_layout = QHBoxLayout()
-        prefix_layout.addWidget(QLabel("Préfixe des répertoires cibles (ex: T) :"))
+        prefix_layout.addWidget(QLabel("Préfixe des répertoires cibles :"))
         self.prefix_input = QLineEdit()
-        self.prefix_input.setPlaceholderText("T")
-        self.prefix_input.setText("T")
-        self.prefix_input.setMaximumWidth(100)
+        self.prefix_input.setReadOnly(True)
+        self.prefix_input.setMaximumWidth(150)
         prefix_layout.addWidget(self.prefix_input)
         prefix_layout.addStretch()
         layout.addLayout(prefix_layout)
+
+        layout.addWidget(QLabel(""))
 
         # Bouton de copie
         copy_btn = QPushButton("Copier les répertoires")
@@ -75,9 +79,6 @@ class DirectoryTab(TabBase):
         widget.setLayout(layout)
         self.refresh_dir_projects_combo()
         
-        # Charger les chemins sauvegardés
-        self.load_directory_paths()
-        
         return widget
 
     def refresh_dir_projects_combo(self):
@@ -88,16 +89,29 @@ class DirectoryTab(TabBase):
             self.dir_project_combo.addItem(project[1], project[0])
 
     def on_dir_project_changed(self):
-        """Mettre à jour les répétitions quand le projet change"""
+        """Mettre à jour les répétitions et les chemins quand le projet change"""
         self.dir_repetition_combo.clear()
         if self.dir_project_combo.count() == 0:
+            self.source_dir_input.clear()
+            self.dest_dir_input.clear()
+            self.prefix_input.clear()
             return
         
         project_id = self.dir_project_combo.currentData()
         project = self.db.get_project(project_id)
         if project:
+            # Mettre à jour les répétitions
             for rep in range(1, project[3] + 1):
                 self.dir_repetition_combo.addItem(f"Répétition {rep}", rep)
+            
+            # Charger et afficher les chemins du projet
+            source_dir = project[5] if len(project) > 5 else ""
+            dest_dir = project[6] if len(project) > 6 else ""
+            prefix = project[7] if len(project) > 7 else "T"
+            
+            self.source_dir_input.setText(source_dir or "")
+            self.dest_dir_input.setText(dest_dir or "")
+            self.prefix_input.setText(prefix or "T")
 
     def copy_directory_contents(self, source, destination):
         """Copier le contenu d'un répertoire source vers un répertoire destination existant"""
@@ -167,89 +181,3 @@ class DirectoryTab(TabBase):
             
         except Exception as e:
             QMessageBox.critical(self.parent, "Erreur", f"Erreur lors de la copie :\n{str(e)}")
-
-    def browse_source_directory(self):
-        """Sélectionner le répertoire source"""
-        directory = QFileDialog.getExistingDirectory(self.parent, "Sélectionner le répertoire source")
-        if directory:
-            self.source_dir_input.setText(directory)
-            self.save_directory_paths()
-
-    def browse_dest_directory(self):
-        """Sélectionner le répertoire destination et créer les répertoires de groupes"""
-        directory = QFileDialog.getExistingDirectory(self.parent, "Sélectionner le répertoire destination")
-        if directory:
-            self.dest_dir_input.setText(directory)
-            self.save_directory_paths()
-            # Créer et configurer les répertoires des groupes
-            self.setup_group_directories()
-
-    def save_directory_paths(self):
-        """Sauvegarder les chemins source et destination en base de données"""
-        source_path = self.source_dir_input.text().strip()
-        dest_path = self.dest_dir_input.text().strip()
-        
-        self.db.set_setting("directory_source", source_path)
-        self.db.set_setting("directory_destination", dest_path)
-
-    def setup_group_directories(self):
-        """Créer les répertoires des groupes et sauvegarder leurs chemins"""
-        dest_dir = self.dest_dir_input.text().strip()
-        prefix = self.prefix_input.text().strip() or "T"
-        
-        if not dest_dir or not os.path.isdir(dest_dir):
-            QMessageBox.warning(self.parent, "Erreur", "Répertoire destination invalide !")
-            return
-        
-        if self.dir_project_combo.count() == 0:
-            QMessageBox.warning(self.parent, "Erreur", "Aucun projet sélectionné !")
-            return
-        
-        project_id = self.dir_project_combo.currentData()
-        repetition = self.dir_repetition_combo.currentData()
-        groups = self.db.get_groups_for_project(project_id, repetition)
-        
-        if not groups:
-            QMessageBox.warning(self.parent, "Erreur", "Aucun groupe trouvé pour cette répétition !")
-            return
-        
-        try:
-            created = 0
-            errors = []
-            
-            for group in groups:
-                group_id, _, group_number, _ = group
-                target_dir_name = f"{prefix}{group_number:02d}"
-                target_dir_path = os.path.join(dest_dir, target_dir_name)
-                
-                try:
-                    # Créer le répertoire s'il n'existe pas
-                    if not os.path.exists(target_dir_path):
-                        os.makedirs(target_dir_path, exist_ok=True)
-                    
-                    # Sauvegarder le chemin dans la base de données
-                    self.db.set_group_directory(group_id, target_dir_name, target_dir_path)
-                    created += 1
-                except Exception as e:
-                    errors.append(f"Groupe {group_number}: {str(e)}")
-            
-            msg = f"✓ {created} répertoire(s) configuré(s)"
-            if errors:
-                msg += f"\n\n⚠ {len(errors)} erreur(s) :\n" + "\n".join(errors[:5])
-                if len(errors) > 5:
-                    msg += f"\n... et {len(errors) - 5} autres erreurs"
-            
-            QMessageBox.information(self.parent, "Configuration terminée", msg)
-            
-        except Exception as e:
-            QMessageBox.critical(self.parent, "Erreur", f"Erreur lors de la configuration :\n{str(e)}")
-
-    def load_directory_paths(self):
-        """Charger les chemins source et destination depuis la base de données"""
-        source_path = self.db.get_setting("directory_source", "")
-        dest_path = self.db.get_setting("directory_destination", "")
-        
-        if source_path:
-            self.source_dir_input.setText(source_path)
-        if dest_path:
-            self.dest_dir_input.setText(dest_path)

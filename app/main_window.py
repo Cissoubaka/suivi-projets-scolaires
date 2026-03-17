@@ -9,7 +9,6 @@ from tabs.groups_tab import GroupsTab
 from tabs.rating_tab import RatingTab
 from tabs.task_assignment_tab import TaskAssignmentTab
 from tabs.attendance_tab import AttendanceTab
-from tabs.directory_tab import DirectoryTab
 from tabs.evaluation_tab import EvaluationTab
 from tabs.export_tab import ExportTab
 
@@ -43,31 +42,27 @@ class MainWindow(QMainWindow):
         self.students_tab = StudentsTab(self)
         tabs.addTab(self.students_tab.create_widget(), "Gestion des Élèves")
 
-        # Onglet 3 : Répertoire
-        self.directory_tab = DirectoryTab(self)
-        tabs.addTab(self.directory_tab.create_widget(), "Répertoire")
-
-        # Onglet 4 : Répartition des groupes
+        # Onglet 3 : Répartition des groupes
         self.groups_tab = GroupsTab(self)
         tabs.addTab(self.groups_tab.create_widget(), "Répartition des Groupes")
 
-        # Onglet 5 : Barème
+        # Onglet 4 : Barème
         self.rating_tab = RatingTab(self)
         tabs.addTab(self.rating_tab.create_widget(), "Barème")
 
-        # Onglet 6 : Répartition des tâches
+        # Onglet 5 : Répartition des tâches
         self.task_assignment_tab = TaskAssignmentTab(self)
         tabs.addTab(self.task_assignment_tab.create_widget(), "Répartition des tâches")
 
-        # Onglet 7 : Suivi Présence
+        # Onglet 6 : Suivi Présence
         self.attendance_tab = AttendanceTab(self)
         tabs.addTab(self.attendance_tab.create_widget(), "Suivi Présence")
 
-        # Onglet 8 : Évaluation
+        # Onglet 7 : Évaluation
         self.evaluation_tab = EvaluationTab(self)
         tabs.addTab(self.evaluation_tab.create_widget(), "Évaluation")
 
-        # Onglet 9 : Export
+        # Onglet 8 : Export
         self.export_tab = ExportTab(self)
         tabs.addTab(self.export_tab.create_widget(), "Export")
 
@@ -83,8 +78,6 @@ class MainWindow(QMainWindow):
             self.task_assignment_tab.refresh_task_projects_combo()
         if hasattr(self, 'attendance_tab'):
             self.attendance_tab.refresh_attendance_projects_combo()
-        if hasattr(self, 'directory_tab'):
-            self.directory_tab.refresh_dir_projects_combo()
         if hasattr(self, 'evaluation_tab'):
             self.evaluation_tab.refresh_eval_projects_combo()
 

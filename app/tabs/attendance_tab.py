@@ -296,8 +296,20 @@ class AttendanceTab(TabBase):
         self.display_attendance_table()
 
     def detect_mindview_file_name(self):
-        """Détecter automatiquement un fichier se terminant par _GANTT.mvdx dans le répertoire source."""
-        source_dir = self.db.get_setting("directory_source", "")
+        """Détecter automatiquement un fichier se terminant par _GANTT.mvdx dans le répertoire source du projet."""
+        # Récupérer le répertoire source du projet courant
+        if self.attendance_project_combo.count() == 0:
+            return None
+        
+        project_id = self.attendance_project_combo.currentData()
+        if not project_id:
+            return None
+        
+        project = self.db.get_project(project_id)
+        if not project or len(project) <= 5:
+            return None
+        
+        source_dir = project[5]  # source_directory est à l'index 5
         if not source_dir or not os.path.isdir(source_dir):
             return None
 
@@ -414,7 +426,7 @@ class AttendanceTab(TabBase):
         table.setRowCount(len(all_students))
         table.setColumnCount(len(sessions) + 3)  # +3 pour Groupe, Élève, Total
         
-        headers = ["Groupe", "Élève"] + [session[1] for session in sessions] + ["Total"]
+        headers = ["Répertoire", "Élève"] + [session[1] for session in sessions] + ["Total"]
         table.setHorizontalHeaderLabels(headers)
         
         custom_header = VerticalHeaderView(Qt.Orientation.Horizontal)
@@ -430,7 +442,7 @@ class AttendanceTab(TabBase):
         table.setColumnWidth(0, 80)
         table.setColumnWidth(1, 120)
         for i in range(len(sessions)):
-            table.setColumnWidth(2 + i, 225)
+            table.setColumnWidth(2 + i, 180)
         table.setColumnWidth(2 + len(sessions), 70)  # Colonne Total
         
         for row, (group_id, group_number, student_id, student_name) in enumerate(all_students):
@@ -441,7 +453,9 @@ class AttendanceTab(TabBase):
             
             bg_color = colors_palette[(group_number - 1) % len(colors_palette)]
             
-            group_item = QTableWidgetItem(f"Groupe {group_number}")
+            dir_name, _ = self.db.get_group_directory(group_id)
+            display_group = dir_name if dir_name else f"Groupe {group_number}"
+            group_item = QTableWidgetItem(display_group)
             group_item.setFlags(group_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             group_item.setBackground(bg_color)
             table.setItem(row, 0, group_item)
@@ -578,6 +592,7 @@ class AttendanceTab(TabBase):
             self.attendance_total_items[(group_id, student_id)] = total_item
         
         table.resizeRowsToContents()
+        table.resizeColumnToContents(0)  # Adapter seulement la colonne Répertoire
         
         self.attendance_scroll_layout.addWidget(table, 1)
 
@@ -868,7 +883,19 @@ class AttendanceTab(TabBase):
     def check_journal_de_bord_for_student(self, group_id, student_id, session_date, max_journal):
         """Vérifier si le journal de bord d'un élève est complète pour une date de séance"""
         try:
-            dest_dir = self.db.get_setting("directory_destination", "")
+            # Récupérer le répertoire destination du projet courant
+            if self.attendance_project_combo.count() == 0:
+                return (False, "file_not_found")
+            
+            project_id = self.attendance_project_combo.currentData()
+            if not project_id:
+                return (False, "file_not_found")
+            
+            project = self.db.get_project(project_id)
+            if not project or len(project) <= 6:
+                return (False, "file_not_found")
+            
+            dest_dir = project[6]  # dest_directory est à l'index 6
             
             if not dest_dir or not os.path.isdir(dest_dir):
                 return (False, "file_not_found")
@@ -1042,18 +1069,23 @@ class AttendanceTab(TabBase):
             return
         
         try:
-            # Récupérer le répertoire destination
-            dest_dir = self.db.get_setting("directory_destination", "")
-            if not dest_dir or not os.path.isdir(dest_dir):
-                QMessageBox.warning(self.parent, "Erreur", "Répertoire destination non configuré !")
-                return
-            
             # Récupérer le projet et la répétition
             project_id = self.attendance_project_combo.currentData()
             repetition = self.attendance_repetition_combo.currentData()
             
             if project_id is None or repetition is None:
                 QMessageBox.warning(self.parent, "Erreur", "Sélection incomplète !")
+                return
+            
+            # Récupérer le répertoire destination du projet courant
+            project = self.db.get_project(project_id)
+            if not project or len(project) <= 6:
+                QMessageBox.warning(self.parent, "Erreur", "Répertoire destination non configuré !")
+                return
+            
+            dest_dir = project[6]  # dest_directory est à l'index 6
+            if not dest_dir or not os.path.isdir(dest_dir):
+                QMessageBox.warning(self.parent, "Erreur", "Répertoire destination non configuré !")
                 return
 
             self.update_detected_mindview_file()

@@ -22,9 +22,26 @@ class Database:
                 description TEXT,
                 repetitions INTEGER DEFAULT 1,
                 group_size INTEGER DEFAULT 2,
+                source_directory TEXT,
+                dest_directory TEXT,
+                prefix TEXT DEFAULT 'T',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        
+        # Migration : ajouter les colonnes manquantes si elles n'existent pas
+        try:
+            cursor.execute('PRAGMA table_info(projects)')
+            columns = [col[1] for col in cursor.fetchall()]
+            
+            if 'source_directory' not in columns:
+                cursor.execute('ALTER TABLE projects ADD COLUMN source_directory TEXT')
+            if 'dest_directory' not in columns:
+                cursor.execute('ALTER TABLE projects ADD COLUMN dest_directory TEXT')
+            if 'prefix' not in columns:
+                cursor.execute('ALTER TABLE projects ADD COLUMN prefix TEXT DEFAULT "T"')
+        except Exception as e:
+            print(f"Erreur lors de la migration : {e}")
 
         # Table des classes
         cursor.execute('''
@@ -460,14 +477,15 @@ class Database:
             return False
 
     # ========== PROJETS ==========
-    def add_project(self, name, description="", repetitions=1, group_size=2):
+    def add_project(self, name, description="", repetitions=1, group_size=2, 
+                    source_directory="", dest_directory="", prefix="T"):
         """Ajouter un nouveau projet"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO projects (name, description, repetitions, group_size)
-            VALUES (?, ?, ?, ?)
-        ''', (name, description, repetitions, group_size))
+            INSERT INTO projects (name, description, repetitions, group_size, source_directory, dest_directory, prefix)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (name, description, repetitions, group_size, source_directory, dest_directory, prefix))
         conn.commit()
         project_id = cursor.lastrowid
         conn.close()
@@ -487,20 +505,22 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT id, name, description, repetitions, group_size FROM projects WHERE id = ?
+            SELECT id, name, description, repetitions, group_size, source_directory, dest_directory, prefix FROM projects WHERE id = ?
         ''', (project_id,))
         project = cursor.fetchone()
         conn.close()
         return project
 
-    def update_project(self, project_id, name, description, repetitions, group_size):
+    def update_project(self, project_id, name, description, repetitions, group_size,
+                       source_directory="", dest_directory="", prefix="T"):
         """Mettre à jour un projet"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            UPDATE projects SET name = ?, description = ?, repetitions = ?, group_size = ?
+            UPDATE projects SET name = ?, description = ?, repetitions = ?, group_size = ?,
+                              source_directory = ?, dest_directory = ?, prefix = ?
             WHERE id = ?
-        ''', (name, description, repetitions, group_size, project_id))
+        ''', (name, description, repetitions, group_size, source_directory, dest_directory, prefix, project_id))
         conn.commit()
         conn.close()
 
