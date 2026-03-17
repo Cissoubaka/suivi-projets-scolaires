@@ -43,13 +43,13 @@ class MainWindow(QMainWindow):
         self.students_tab = StudentsTab(self)
         tabs.addTab(self.students_tab.create_widget(), "Gestion des Élèves")
 
-        # Onglet 3 : Répartition des groupes
-        self.groups_tab = GroupsTab(self)
-        tabs.addTab(self.groups_tab.create_widget(), "Répartition des Groupes")
-
-        # Onglet 4 : Répertoire
+        # Onglet 3 : Répertoire
         self.directory_tab = DirectoryTab(self)
         tabs.addTab(self.directory_tab.create_widget(), "Répertoire")
+
+        # Onglet 4 : Répartition des groupes
+        self.groups_tab = GroupsTab(self)
+        tabs.addTab(self.groups_tab.create_widget(), "Répartition des Groupes")
 
         # Onglet 5 : Barème
         self.rating_tab = RatingTab(self)
