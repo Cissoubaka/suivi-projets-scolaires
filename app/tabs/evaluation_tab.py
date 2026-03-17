@@ -24,6 +24,32 @@ class EvaluationTab(TabBase):
         self.eval_duplicated_cat_ids = set()  # Pour identifier les cat_id dupliquées
         self.eval_categories_map = []  # Liste des catégories avec hiérarchie
     
+    def _apply_spinbox_style(self, spinbox):
+        """Forcer un rendu lisible des valeurs de spinbox sur Windows et Linux."""
+        spinbox.setMinimumWidth(66)
+        spinbox.setMinimumHeight(26)
+        spinbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        spinbox.setFont(QFont("Segoe UI", 10))
+        spinbox.setStyleSheet(
+            "QSpinBox { "
+            "color: #111111; "
+            "background-color: #FFFFFF; "
+            "border: 1px solid #8A8A8A; "
+            "padding: 2px 20px 2px 4px; "
+            "selection-background-color: #1976D2; "
+            "selection-color: #FFFFFF; "
+            "} "
+            "QSpinBox:disabled { "
+            "color: #555555; "
+            "background-color: #F0F0F0; "
+            "} "
+            "QSpinBox::up-button, QSpinBox::down-button { "
+            "background-color: #E7E7E7; "
+            "border-left: 1px solid #B0B0B0; "
+            "width: 16px; "
+            "}"
+        )
+    
     def create_widget(self):
         """Créer l'onglet d'évaluation des catégories"""
         widget = QWidget()
@@ -650,6 +676,7 @@ class EvaluationTab(TabBase):
                     spinbox = QSpinBox()
                     spinbox.setMinimum(0)
                     spinbox.setMaximum(cat_points if cat_points is not None else 100)
+                    self._apply_spinbox_style(spinbox)
                     
                     # ✅ CHARGER la valeur depuis eval_data (pré-rempli depuis la BD)
                     # Utiliser COL comme index dans categories (col est l'index de cette catégorie)

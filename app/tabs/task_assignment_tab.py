@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QScrollArea, QTableWidget, QTableWidgetItem, QCheckBox, QMessageBox
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QFont
 from custom_widgets import VerticalHeaderView
 from tabs.base import TabBase
 
@@ -17,6 +17,37 @@ class TaskAssignmentTab(TabBase):
         self.task_checkboxes = {}
         self.task_total_labels = {}
         self.task_categories = []
+    
+    def _apply_checkbox_style(self, checkbox):
+        """Appliquer un style explicite aux checkboxes pour Windows 11."""
+        checkbox.setMinimumWidth(24)
+        checkbox.setMinimumHeight(24)
+        checkbox.setStyleSheet(
+            "QCheckBox { "
+            "color: #111111; "
+            "background-color: transparent; "
+            "spacing: 4px; "
+            "} "
+            "QCheckBox::indicator { "
+            "width: 18px; "
+            "height: 18px; "
+            "background-color: #FFFFFF; "
+            "border: 2px solid #8A8A8A; "
+            "border-radius: 3px; "
+            "} "
+            "QCheckBox::indicator:hover { "
+            "background-color: #F5F5F5; "
+            "border: 2px solid #4A90E2; "
+            "} "
+            "QCheckBox::indicator:checked { "
+            "background-color: #2196F3; "
+            "border: 2px solid #1976D2; "
+            "image: url(':/qt-project.org/styles/commonstyle/images/checkbox.png'); "
+            "} "
+            "QCheckBox::indicator:checked:hover { "
+            "background-color: #1976D2; "
+            "}"
+        )
     
     def create_widget(self):
         """Créer l'onglet de répartition des tâches (tous les groupes)"""
@@ -299,6 +330,7 @@ class TaskAssignmentTab(TabBase):
                 
                 checkbox = QCheckBox()
                 checkbox.setChecked(is_assigned)
+                self._apply_checkbox_style(checkbox)
                 
                 checkbox.stateChanged.connect(lambda state, g_id=group_id, s_id=student_id: self.update_task_total(g_id, s_id))
                 

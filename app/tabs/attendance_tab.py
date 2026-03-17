@@ -3,10 +3,11 @@ import zipfile
 import xml.etree.ElementTree as ET
 import unicodedata
 import json
-from datetime import datetime
+from datetime import datetime, date
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
-    QDateEdit, QSpinBox, QScrollArea, QTableWidget, QTableWidgetItem, QCheckBox, QMessageBox
+    QDateEdit, QSpinBox, QScrollArea, QTableWidget, QTableWidgetItem, QCheckBox, QMessageBox,
+    QLineEdit
 )
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QColor, QFont
@@ -27,6 +28,63 @@ class AttendanceTab(TabBase):
         self.attendance_session_ids = {}
         self.attendance_cell_widgets = {}
         self.attendance_total_items = {}  # Stocker les références aux items "Total"
+
+    def _apply_spinbox_style(self, spinbox):
+        """Forcer un rendu lisible des valeurs de spinbox sur Windows et Linux."""
+        spinbox.setMinimumWidth(66)
+        spinbox.setMinimumHeight(26)
+        spinbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        spinbox.setFont(QFont("Segoe UI", 10))
+        spinbox.setStyleSheet(
+            "QSpinBox { "
+            "color: #111111; "
+            "background-color: #FFFFFF; "
+            "border: 1px solid #8A8A8A; "
+            "padding: 2px 20px 2px 4px; "
+            "selection-background-color: #1976D2; "
+            "selection-color: #FFFFFF; "
+            "} "
+            "QSpinBox:disabled { "
+            "color: #555555; "
+            "background-color: #F0F0F0; "
+            "} "
+            "QSpinBox::up-button, QSpinBox::down-button { "
+            "background-color: #E7E7E7; "
+            "border-left: 1px solid #B0B0B0; "
+            "width: 16px; "
+            "}"
+        )
+    
+    def _apply_checkbox_style(self, checkbox):
+        """Appliquer un style explicite aux checkboxes pour Windows 11."""
+        checkbox.setMinimumWidth(24)
+        checkbox.setMinimumHeight(24)
+        checkbox.setStyleSheet(
+            "QCheckBox { "
+            "color: #111111; "
+            "background-color: transparent; "
+            "spacing: 4px; "
+            "} "
+            "QCheckBox::indicator { "
+            "width: 18px; "
+            "height: 18px; "
+            "background-color: #FFFFFF; "
+            "border: 2px solid #8A8A8A; "
+            "border-radius: 3px; "
+            "} "
+            "QCheckBox::indicator:hover { "
+            "background-color: #F5F5F5; "
+            "border: 2px solid #4A90E2; "
+            "} "
+            "QCheckBox::indicator:checked { "
+            "background-color: #2196F3; "
+            "border: 2px solid #1976D2; "
+            "image: url(':/qt-project.org/styles/commonstyle/images/checkbox.png'); "
+            "} "
+            "QCheckBox::indicator:checked:hover { "
+            "background-color: #1976D2; "
+            "}"
+        )
     
     def create_widget(self):
         """Créer l'onglet de suivi de présence"""
@@ -47,6 +105,16 @@ class AttendanceTab(TabBase):
             selection_layout.addWidget(self.attendance_repetition_combo)
             
             layout.addLayout(selection_layout)
+
+            # Section information du fichier Mindview détecté
+            mindview_layout = QHBoxLayout()
+            mindview_layout.addWidget(QLabel("Fichier Mindview détecté :"))
+            self.mindview_file_input = QLineEdit()
+            self.mindview_file_input.setReadOnly(True)
+            self.mindview_file_input.setPlaceholderText("Aucun fichier *_GANTT.mvdx détecté")
+            mindview_layout.addWidget(self.mindview_file_input)
+            
+            layout.addLayout(mindview_layout)
 
             # Section ajout de séances
             session_layout = QHBoxLayout()
@@ -69,6 +137,7 @@ class AttendanceTab(TabBase):
             self.attendance_journal_input.setMinimum(0)
             self.attendance_journal_input.setMaximum(20)
             self.attendance_journal_input.setValue(0)
+            self._apply_spinbox_style(self.attendance_journal_input)
             session_layout.addWidget(self.attendance_journal_input)
             
             session_layout.addSpacing(10)
@@ -79,6 +148,7 @@ class AttendanceTab(TabBase):
             self.attendance_gantt_input.setMinimum(0)
             self.attendance_gantt_input.setMaximum(20)
             self.attendance_gantt_input.setValue(0)
+            self._apply_spinbox_style(self.attendance_gantt_input)
             session_layout.addWidget(self.attendance_gantt_input)
             
             session_layout.addSpacing(10)
@@ -89,6 +159,7 @@ class AttendanceTab(TabBase):
             self.attendance_behavior_input.setMinimum(0)
             self.attendance_behavior_input.setMaximum(20)
             self.attendance_behavior_input.setValue(0)
+            self._apply_spinbox_style(self.attendance_behavior_input)
             session_layout.addWidget(self.attendance_behavior_input)
             
             session_layout.addSpacing(20)
@@ -172,6 +243,8 @@ class AttendanceTab(TabBase):
                 return
             
             project_id = self.attendance_project_combo.currentData()
+            self.update_detected_mindview_file()
+            
             project = self.db.get_project(project_id)
             if project:
                 self.attendance_repetition_combo.blockSignals(True)
@@ -221,6 +294,52 @@ class AttendanceTab(TabBase):
         
         QMessageBox.information(self.parent, "Succès", f"Séance du {session_date} ajoutée !")
         self.display_attendance_table()
+
+    def detect_mindview_file_name(self):
+        """Détecter automatiquement un fichier se terminant par _GANTT.mvdx dans le répertoire source."""
+        source_dir = self.db.get_setting("directory_source", "")
+        if not source_dir or not os.path.isdir(source_dir):
+            return None
+
+        try:
+            candidates = []
+            for file_name in os.listdir(source_dir):
+                if file_name.lower().endswith("_gantt.mvdx"):
+                    full_path = os.path.join(source_dir, file_name)
+                    if os.path.isfile(full_path):
+                        candidates.append((os.path.getmtime(full_path), file_name))
+
+            if not candidates:
+                return None
+
+            # Prendre le fichier le plus récent en cas de plusieurs correspondances.
+            candidates.sort(key=lambda item: item[0], reverse=True)
+            return candidates[0][1]
+        except Exception as e:
+            print(f"[ERROR] detect_mindview_file_name: {e}")
+            return None
+
+    def update_detected_mindview_file(self):
+        """Mettre à jour le champ affichant le fichier Mindview détecté."""
+        detected_file = self.detect_mindview_file_name()
+        if detected_file:
+            self.mindview_file_input.setText(detected_file)
+        else:
+            self.mindview_file_input.clear()
+    
+    def get_gantt_file_path(self, group_dir_path, project_id):
+        """Construire le chemin du fichier GANTT Mindview pour un groupe
+        Cherche le fichier avec le nom détecté depuis le répertoire source.
+        """
+        mindview_file = self.detect_mindview_file_name()
+
+        if mindview_file:
+            gantt_file_path = os.path.join(group_dir_path, mindview_file)
+        else:
+            # Fichier par défaut
+            gantt_file_path = os.path.join(group_dir_path, "WBS_projet_interface_GANTT.mvdx")
+        
+        return gantt_file_path
 
     def display_attendance_table(self):
         """Afficher le tableau de présence"""
@@ -311,7 +430,7 @@ class AttendanceTab(TabBase):
         table.setColumnWidth(0, 80)
         table.setColumnWidth(1, 120)
         for i in range(len(sessions)):
-            table.setColumnWidth(2 + i, 150)
+            table.setColumnWidth(2 + i, 225)
         table.setColumnWidth(2 + len(sessions), 70)  # Colonne Total
         
         for row, (group_id, group_number, student_id, student_name) in enumerate(all_students):
@@ -352,11 +471,12 @@ class AttendanceTab(TabBase):
                 
                 checkbox = QCheckBox("Présent")
                 checkbox.setChecked(is_present)
+                self._apply_checkbox_style(checkbox)
                 cell_layout.addWidget(checkbox)
                 
                 spinbox_layout = QHBoxLayout()
                 spinbox_layout.setContentsMargins(0, 0, 0, 0)
-                spinbox_layout.setSpacing(2)
+                spinbox_layout.setSpacing(4)
                 
                 journal_spin = QSpinBox()
                 journal_spin.setMinimum(0)
@@ -364,6 +484,7 @@ class AttendanceTab(TabBase):
                 journal_spin.setValue(journal_bord if is_present else 0)
                 journal_spin.setToolTip(f"Journal (max: {max_journal})")
                 journal_spin.setEnabled(is_present)
+                self._apply_spinbox_style(journal_spin)
                 spinbox_layout.addWidget(journal_spin)
                 
                 gantt_spin = QSpinBox()
@@ -372,6 +493,7 @@ class AttendanceTab(TabBase):
                 gantt_spin.setValue(gantt if is_present else 0)
                 gantt_spin.setToolTip(f"GANTT (max: {max_gantt})")
                 gantt_spin.setEnabled(is_present)
+                self._apply_spinbox_style(gantt_spin)
                 spinbox_layout.addWidget(gantt_spin)
                 
                 comportement_spin = QSpinBox()
@@ -380,6 +502,7 @@ class AttendanceTab(TabBase):
                 comportement_spin.setValue(travail_comportement if is_present else 0)
                 comportement_spin.setToolTip(f"Travail/comportement (max: {max_comportement})")
                 comportement_spin.setEnabled(is_present)
+                self._apply_spinbox_style(comportement_spin)
                 spinbox_layout.addWidget(comportement_spin)
                 
                 # Connecter les spinboxes pour mettre à jour le total
@@ -711,6 +834,37 @@ class AttendanceTab(TabBase):
         nfkd_form = unicodedata.normalize('NFKD', text)
         return ''.join([c for c in nfkd_form if not unicodedata.combining(c)])
 
+    def _normalize_filename_key(self, text):
+        """Normaliser un nom de fichier pour comparaison souple."""
+        if not text:
+            return ""
+
+        normalized = self.remove_accents(text).lower()
+        for char in [' ', '_', '-', '.', '(', ')']:
+            normalized = normalized.replace(char, '')
+        return normalized
+
+    def _find_matching_file_case_insensitive(self, directory_path, expected_filenames):
+        """Trouver un fichier dans un dossier sans tenir compte de la casse."""
+        try:
+            if not os.path.isdir(directory_path):
+                return None
+
+            existing_files = {
+                self._normalize_filename_key(file_name): file_name
+                for file_name in os.listdir(directory_path)
+            }
+
+            for expected_filename in expected_filenames:
+                matched_filename = existing_files.get(self._normalize_filename_key(expected_filename))
+                if matched_filename:
+                    return os.path.join(directory_path, matched_filename)
+
+            return None
+        except Exception as e:
+            print(f"[ERROR] Recherche insensible à la casse impossible: {e}")
+            return None
+
     def check_journal_de_bord_for_student(self, group_id, student_id, session_date, max_journal):
         """Vérifier si le journal de bord d'un élève est complète pour une date de séance"""
         try:
@@ -769,27 +923,55 @@ class AttendanceTab(TabBase):
             
             group_dir_path = os.path.join(dest_dir, dir_name)
             
-            possible_filenames = [
-                f"JOURNAL DE BORD {student_firstname}.odt",
-                f"JOURNAL DE BORD {student_lastname}.odt",
-                f"JOURNAL DE BORD {student_firstname} {student_lastname}.odt",
-                f"JOURNAL DE BORD {student_lastname} {student_firstname}.odt",
+            base_name_variants = [
+                student_firstname,
+                student_lastname,
+                f"{student_firstname} {student_lastname}",
+                f"{student_lastname} {student_firstname}",
+                firstname_no_accents,
+                lastname_no_accents,
+                f"{firstname_no_accents} {lastname_no_accents}",
+                f"{lastname_no_accents} {firstname_no_accents}",
+                firstname_upper,
+                lastname_upper,
+                f"{firstname_upper} {lastname_upper}",
+                f"{lastname_upper} {firstname_upper}",
+                firstname_no_accents_upper,
+                lastname_no_accents_upper,
+                f"{firstname_no_accents_upper} {lastname_no_accents_upper}",
+                f"{lastname_no_accents_upper} {firstname_no_accents_upper}",
             ]
-            
+
             if student_class_name:
-                possible_filenames.extend([
-                    f"JOURNAL DE BORD {student_firstname} {student_class_name}.odt",
-                    f"JOURNAL DE BORD {student_lastname} {student_class_name}.odt",
-                    f"JOURNAL DE BORD {student_firstname} {student_lastname} {student_class_name}.odt",
-                    f"JOURNAL DE BORD {student_lastname} {student_firstname} {student_class_name}.odt",
-                ])
-            
-            odt_file_path = None
-            for filename in possible_filenames:
-                full_path = os.path.join(group_dir_path, filename)
-                if os.path.isfile(full_path):
-                    odt_file_path = full_path
-                    break
+                class_variants = [
+                    student_class_name,
+                    self.remove_accents(student_class_name),
+                    student_class_name.upper(),
+                    self.remove_accents(student_class_name).upper(),
+                ]
+                for class_variant in class_variants:
+                    base_name_variants.extend([
+                        f"{student_firstname} {class_variant}",
+                        f"{student_lastname} {class_variant}",
+                        f"{student_firstname} {student_lastname} {class_variant}",
+                        f"{student_lastname} {student_firstname} {class_variant}",
+                        f"{firstname_no_accents} {class_variant}",
+                        f"{lastname_no_accents} {class_variant}",
+                        f"{firstname_no_accents} {lastname_no_accents} {class_variant}",
+                        f"{lastname_no_accents} {firstname_no_accents} {class_variant}",
+                    ])
+
+            possible_filenames = []
+            seen_filenames = set()
+            prefixes = ["JOURNAL DE BORD ", "JOURNAL DE BORD_"]
+            for prefix in prefixes:
+                for base_name in base_name_variants:
+                    filename = f"{prefix}{base_name}.odt"
+                    if filename not in seen_filenames:
+                        seen_filenames.add(filename)
+                        possible_filenames.append(filename)
+
+            odt_file_path = self._find_matching_file_case_insensitive(group_dir_path, possible_filenames)
             
             if not odt_file_path:
                 return (False, "file_not_found")
@@ -873,6 +1055,8 @@ class AttendanceTab(TabBase):
             if project_id is None or repetition is None:
                 QMessageBox.warning(self.parent, "Erreur", "Sélection incomplète !")
                 return
+
+            self.update_detected_mindview_file()
             
             # Récupérer la dernière séance
             sessions = self.db.get_session_dates(project_id, repetition)
@@ -893,10 +1077,6 @@ class AttendanceTab(TabBase):
             conn.close()
             max_gantt = result[0] if result else 20
             
-            print(f"[DEBUG GANTT] Dernière séance : {session_date_str} (date: {session_date})")
-            print(f"[DEBUG GANTT] Max GANTT : {max_gantt}")
-            print(f"[DEBUG GANTT] Répertoire destination : {dest_dir}")
-            
             # Récupérer les groupes
             groups = self.db.get_groups_for_project(project_id, repetition)
             if not groups:
@@ -913,12 +1093,7 @@ class AttendanceTab(TabBase):
                     dir_name = f"T{group_number:02d}"
                 
                 group_dir_path = os.path.join(dest_dir, dir_name)
-                gantt_file_path = os.path.join(group_dir_path, "WBS_projet_interface_GANTT.mvdx")
-                
-                print(f"\n[DEBUG GANTT] Groupe {dir_name}:")
-                print(f"  Chemin groupe: {group_dir_path}")
-                print(f"  Chemin fichier GANTT: {gantt_file_path}")
-                print(f"  Fichier existe: {os.path.isfile(gantt_file_path)}")
+                gantt_file_path = self.get_gantt_file_path(group_dir_path, project_id)
                 
                 gantt_note = 0
                 status = "missing"
@@ -929,83 +1104,74 @@ class AttendanceTab(TabBase):
                         parser = MindViewParser(gantt_file_path)
                         file_date = parser.get_file_date()
                         
-                        print(f"  Date du fichier: {file_date}")
-                        
                         if file_date is None:
                             status = "date_error"
-                            print(f"  → Erreur lors de la lecture de la date")
                         else:
-                            file_date_only = file_date.date()
-                            print(f"  Comparaison: fichier={file_date_only} vs session={session_date}")
+                            # Extraire la date en s'assurant du format
+                            if isinstance(file_date, str):
+                                try:
+                                    file_date = datetime.fromisoformat(file_date).date() if 'T' in file_date else datetime.strptime(file_date, "%Y-%m-%d").date()
+                                except Exception as e:
+                                    try:
+                                        file_date = datetime.strptime(file_date, "%Y-%m-%d").date()
+                                    except Exception as e2:
+                                        file_date = None
+                            elif hasattr(file_date, 'date'):
+                                file_date = file_date.date()
+                            elif not isinstance(file_date, date):
+                                file_date = None
                             
-                            # Comparaison strict : date doit correspondre à la dernière séance
-                            if file_date_only != session_date:
+                            if file_date is None:
+                                status = "date_conversion_error"
                                 gantt_note = 0
-                                status = "date_mismatch"
-                                print(f"  → Date mismatch (fichier={file_date_only}, session={session_date})")
                             else:
-                                print(f"  ✓ Date OK")
-                                # Date OK, vérifier la progression
-                                if parser.parse():
-                                    print(f"  ✓ Parsing réussi")
-                                    current_percentages = parser.get_task_percentages()
-                                    print(f"  Tâches trouvées: {len(current_percentages)}")
-                                    if current_percentages:
-                                        for i, task in enumerate(current_percentages[:3]):
-                                            print(f"    [{i}] {task['name']}: {task['percent']}%")
-                                    
-                                    # Récupérer l'historique précédent
-                                    previous_check = self.db.get_latest_gantt_check_history(project_id, group_id)
-                                    
-                                    if not current_percentages:
-                                        status = "no_tasks"
-                                        gantt_note = 0
-                                        print(f"  → Aucune tâche trouvée")
-                                    elif previous_check is None:
-                                        # PREMIÈRE VÉRIFICATION
-                                        print(f"  PREMIÈRE VÉRIFICATION")
-                                        # Vérifier si première tâche a commencé (% > 0)
-                                        first_task_status = parser.get_first_task_started()
-                                        print(f"  1ère tâche: {first_task_status}")
-                                        if first_task_status and first_task_status['started']:
-                                            gantt_note = max_gantt
-                                            status = "first_check_started"
-                                            print(f"  → Note attribuée: {gantt_note}")
-                                        else:
-                                            gantt_note = 0
-                                            status = "first_check_not_started"
-                                            print(f"  → 1ère tâche pas démarrée, note=0")
-                                    else:
-                                        # VÉRIFICATION SUIVANTE
-                                        print(f"  VÉRIFICATION SUIVANTE")
-                                        prev_percentages_json, _, _ = previous_check
-                                        prev_percentages = json.loads(prev_percentages_json)
-                                        print(f"  État précédent: {len(prev_percentages)} tâches")
-                                        
-                                        # Vérifier progression
-                                        progression = parser.check_progression(prev_percentages)
-                                        print(f"  Progression: {progression}")
-                                        
-                                        if progression['has_progress'] or progression['first_task_completed'] and progression['next_task_started']:
-                                            gantt_note = max_gantt
-                                            status = "progression_ok"
-                                            print(f"  → Progression OK, note={gantt_note}")
-                                        elif progression['has_progress']:
-                                            gantt_note = max_gantt
-                                            status = "progress_detected"
-                                            print(f"  → Progression détectée, note={gantt_note}")
-                                        else:
-                                            gantt_note = 0
-                                            status = "no_progress"
-                                            print(f"  → Pas de progression, note=0")
-                                    
-                                    # Sauvegarder l'historique pour les futures vérifications
-                                    percentages_json = json.dumps(current_percentages)
-                                    self.db.save_gantt_check_history(project_id, group_id, session_id, percentages_json, gantt_note)
-                                else:
-                                    status = "parse_error"
+                                file_date_only = file_date
+                                
+                                # Comparaison strict : date doit correspondre à la dernière séance
+                                if file_date_only != session_date:
                                     gantt_note = 0
-                                    print(f"  → Erreur parsing MVDX")
+                                    status = "date_mismatch"
+                                else:
+                                    # Date OK, vérifier la progression
+                                    if parser.parse():
+                                        current_percentages = parser.get_task_percentages()
+                                        
+                                        # Récupérer l'historique précédent
+                                        previous_check = self.db.get_latest_gantt_check_history(project_id, group_id)
+                                        
+                                        if not current_percentages:
+                                            status = "no_tasks"
+                                            gantt_note = 0
+                                        elif previous_check is None:
+                                            # Vérifier si au moins un pourcentage a changé (% > 0)
+                                            any_percentage_changed = any(task.get('percent', 0) > 0 for task in current_percentages)
+                                            
+                                            if any_percentage_changed:
+                                                gantt_note = max_gantt
+                                                status = "first_check_progress_detected"
+                                            else:
+                                                gantt_note = 0
+                                                status = "first_check_no_progress"
+                                        else:
+                                            prev_percentages_json, _, _ = previous_check
+                                            prev_percentages = json.loads(prev_percentages_json)
+                                            
+                                            # Vérifier si au moins un pourcentage a changé (% > 0)
+                                            any_percentage_changed = any(task.get('percent', 0) > 0 for task in current_percentages)
+                                            
+                                            if any_percentage_changed:
+                                                gantt_note = max_gantt
+                                                status = "progress_detected"
+                                            else:
+                                                gantt_note = 0
+                                                status = "no_progress"
+                                        
+                                        # Sauvegarder l'historique pour les futures vérifications
+                                        percentages_json = json.dumps(current_percentages)
+                                        self.db.save_gantt_check_history(project_id, group_id, session_id, percentages_json, gantt_note)
+                                    else:
+                                        status = "parse_error"
+                                        gantt_note = 0
                     except Exception as e:
                         print(f"[ERROR] Erreur vérification GANTT {dir_name}: {e}")
                         import traceback
@@ -1018,7 +1184,17 @@ class AttendanceTab(TabBase):
                     students = self.db.get_students_in_group(group_id)
                     for student in students:
                         student_id = student[0] if isinstance(student, tuple) else student
-                        self.db.set_attendance(student_id, group_id, session_id, True, 0, gantt_note, 0)
+                        existing_attendance = self.db.get_attendance(student_id, group_id, session_id)
+                        is_present, journal_bord, _, travail_comportement = existing_attendance
+                        self.db.set_attendance(
+                            student_id,
+                            group_id,
+                            session_id,
+                            is_present,
+                            journal_bord,
+                            gantt_note,
+                            travail_comportement
+                        )
                     
                     results.append({
                         'group': dir_name,
@@ -1036,6 +1212,7 @@ class AttendanceTab(TabBase):
                     })
             
             # Afficher le résumé
+            self.display_attendance_table()
             self._display_gantt_verification_results(results)
             
         except Exception as e:

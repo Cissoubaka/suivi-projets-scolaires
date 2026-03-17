@@ -342,10 +342,46 @@ class Database:
             )
         ''')
 
+        # Ajouter la colonne mindview_file à la table projects si elle n'existe pas
+        try:
+            cursor.execute('ALTER TABLE projects ADD COLUMN mindview_file TEXT')
+        except sqlite3.OperationalError:
+            # La colonne existe déjà, pas d'erreur
+            pass
+
         conn.commit()
         conn.close()
 
-    # ========== CLASSES ==========
+    # ========== PROJETS ==========
+    def set_mindview_file(self, project_id, mindview_file):
+        """Définir le fichier mindview pour un projet"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('UPDATE projects SET mindview_file = ? WHERE id = ?', (mindview_file, project_id))
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"[ERROR] set_mindview_file: {e}")
+            conn.close()
+            return False
+    
+    def get_mindview_file(self, project_id):
+        """Récupérer le fichier mindview pour un projet"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT mindview_file FROM projects WHERE id = ?', (project_id,))
+            result = cursor.fetchone()
+            conn.close()
+            return result[0] if result and result[0] else None
+        except Exception as e:
+            print(f"[ERROR] get_mindview_file: {e}")
+            conn.close()
+            return None
+
+    # ========== CLASSES =========
     def add_class(self, name):
         """Ajouter une nouvelle classe"""
         conn = self.get_connection()
