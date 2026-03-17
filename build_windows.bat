@@ -4,19 +4,46 @@ REM Utilisation: double-cliquez sur ce fichier ou lancez: build_windows.bat
 
 setlocal enabledelayedexpansion
 
+REM Déterminer l'interpréteur Python à utiliser (venv prioritaire)
+set "PYTHON_EXE="
+if exist ".venv\Scripts\python.exe" (
+    set "PYTHON_EXE=.venv\Scripts\python.exe"
+) else (
+    where py >nul 2>&1
+    if not errorlevel 1 (
+        set "PYTHON_EXE=py"
+    ) else (
+        where python >nul 2>&1
+        if not errorlevel 1 (
+            set "PYTHON_EXE=python"
+        )
+    )
+)
+
 echo ==========================================
 echo Création de l'exécutable Windows
 echo ==========================================
 echo.
 
-REM Vérifier que PyInstaller est installé
-pyinstaller --version >nul 2>&1
-if errorlevel 1 (
-    echo ❌ PyInstaller n'est pas installé
-    echo Installation: pip install PyInstaller
+if "%PYTHON_EXE%"=="" (
+    echo [ERREUR] Python introuvable.
+    echo Installez Python puis relancez le script.
     echo.
     pause
     exit /b 1
+)
+
+REM Vérifier que PyInstaller est installé
+%PYTHON_EXE% -m PyInstaller --version >nul 2>&1
+if errorlevel 1 (
+    echo PyInstaller n'est pas installe. Installation en cours...
+    %PYTHON_EXE% -m pip install --upgrade PyInstaller
+    if errorlevel 1 (
+        echo [ERREUR] Impossible d'installer PyInstaller.
+        echo.
+        pause
+        exit /b 1
+    )
 )
 
 REM Nettoyer les builds précédents
@@ -35,7 +62,7 @@ REM Générer l'exécutable
 echo 🔨 Construction de l'exécutable...
 echo Cela peut prendre quelques minutes...
 echo.
-pyinstaller build.spec
+%PYTHON_EXE% -m PyInstaller build.spec
 
 REM Vérifier le succès
 if exist "dist\SuiviProjets\SuiviProjets.exe" (

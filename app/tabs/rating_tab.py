@@ -183,6 +183,9 @@ class RatingTab(TabBase):
             total_item.setFont(1, font)
             self.rating_tree.addTopLevelItem(total_item)
 
+        # Garder l'arbre entièrement déplié pour visualiser toutes les catégories.
+        self.rating_tree.expandAll()
+
     def on_rating_item_selected(self):
         """Méthode appelée quand un élément est sélectionné"""
         pass
@@ -323,8 +326,9 @@ class RatingTab(TabBase):
         
         self.refresh_rating_tree()
 
-    def edit_rating_item_double_click(self, item):
+    def edit_rating_item_double_click(self, item, column):
         """Éditer un élément en double-cliquant"""
+        _ = column
         item_data = item.data(0, Qt.ItemDataRole.UserRole)
         
         if item_data is None:
@@ -336,23 +340,14 @@ class RatingTab(TabBase):
             QMessageBox.warning(self.parent, "Erreur", "Vous ne pouvez pas éditer la ligne de total !")
             return
         
-        if item_type == 'category':
-            cursor = self.db.get_connection().cursor()
-            cursor.execute('SELECT name, points FROM rating_categories WHERE id = ?', (item_id,))
-            result = cursor.fetchone()
-            cursor.close()
-        elif item_type == 'subcategory':
-            cursor = self.db.get_connection().cursor()
-            cursor.execute('SELECT name, points FROM rating_subcategories WHERE id = ?', (item_id,))
-            result = cursor.fetchone()
-            cursor.close()
-        elif item_type == 'subsubcategory':
-            cursor = self.db.get_connection().cursor()
-            cursor.execute('SELECT name, points FROM rating_subsubcategories WHERE id = ?', (item_id,))
-            result = cursor.fetchone()
-            cursor.close()
-        else:
+        if item_type not in ('category', 'subcategory', 'subsubcategory'):
             return
+
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT name, points FROM rating_categories WHERE id = ?', (item_id,))
+        result = cursor.fetchone()
+        conn.close()
         
         if result is None:
             return

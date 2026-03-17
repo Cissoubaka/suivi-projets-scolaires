@@ -11,16 +11,30 @@ class LogFileWriter:
         self.filename = filename
         self.terminal = terminal_stream
         self.file = open(filename, 'a', encoding='utf-8')
+
+    def _write_to_terminal(self, message):
+        """Écrire dans le terminal seulement si un flux valide est disponible."""
+        if self.terminal and hasattr(self.terminal, 'write'):
+            try:
+                self.terminal.write(message)
+                if hasattr(self.terminal, 'flush'):
+                    self.terminal.flush()
+            except Exception:
+                # En mode exécutable sans console, ignorer silencieusement.
+                pass
     
     def write(self, message):
         self.file.write(message)
         self.file.flush()
-        self.terminal.write(message)
-        self.terminal.flush()
+        self._write_to_terminal(message)
     
     def flush(self):
         self.file.flush()
-        self.terminal.flush()
+        if self.terminal and hasattr(self.terminal, 'flush'):
+            try:
+                self.terminal.flush()
+            except Exception:
+                pass
     
     def close(self):
         self.file.close()
