@@ -2,10 +2,15 @@
 
 import os
 import shutil
+import zipfile
+import xml.etree.ElementTree as ET
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
-    QTextEdit, QSpinBox, QMessageBox, QFileDialog, QComboBox
+    QTextEdit, QSpinBox, QMessageBox, QFileDialog, QComboBox, QTableWidget,
+    QTableWidgetItem, QScrollArea, QWidget
 )
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
 
 
 class ProjectDialog(QDialog):
@@ -386,6 +391,326 @@ class StudentDialog(QDialog):
             'firstname': self.firstname_input.text(),
             'lastname': self.lastname_input.text()
         }
+
+
+class DialogueJournalDeBord(QDialog):
+    """Dialogue pour afficher le journal de bord et les tâches d'un élève par date"""
+    
+    def __init__(self, parent=None, student_name="", group_id=None, student_id=None, 
+                 db=None, attendance_tab=None):
+        super().__init__(parent)
+        self.student_name = student_name
+        self.group_id = group_id
+        self.student_id = student_id
+        self.db = db
+        self.attendance_tab = attendance_tab
+        self.init_ui()
+        self.load_data()
+    
+    def init_ui(self):
+        """Initialiser l'interface du dialogue"""
+        self.setWindowTitle(f"Journal de bord - {self.student_name}")
+        self.setGeometry(100, 100, 1200, 700)
+        
+        layout = QVBoxLayout()
+        
+        # Titre
+        title = QLabel(f"Journal de bord et tâches de {self.student_name}")
+        title_font = QFont()
+        title_font.setBold(True)
+        title_font.setPointSize(12)
+        title.setFont(title_font)
+        layout.addWidget(title)
+        
+        # Créer deux sections avec défilement
+        content_layout = QHBoxLayout()
+        
+        # --- SECTION GAUCHE : JOURNAL DE BORD ---
+        left_section = QVBoxLayout()
+        left_section.addWidget(QLabel("Journal de bord par date :"))
+        
+        self.journal_table = QTableWidget()
+        self.journal_table.setColumnCount(2)
+        self.journal_table.setHorizontalHeaderLabels(["Date", "Contenu"])
+        self.journal_table.setColumnWidth(0, 150)
+        self.journal_table.setColumnWidth(1, 350)
+        self.journal_table.resizeRowsToContents()
+        left_section.addWidget(self.journal_table)
+        
+        left_widget = QWidget()
+        left_widget.setLayout(left_section)
+        content_layout.addWidget(left_widget, 1)
+        
+        # --- SECTION DROITE : TÂCHES ---
+        right_section = QVBoxLayout()
+        right_section.addWidget(QLabel("Tâches et pourcentages :"))
+        
+        self.tasks_table = QTableWidget()
+        self.tasks_table.setColumnCount(2)
+        self.tasks_table.setHorizontalHeaderLabels(["Tâche", "Pourcentage"])
+        self.tasks_table.setColumnWidth(0, 250)
+        self.tasks_table.setColumnWidth(1, 100)
+        right_section.addWidget(self.tasks_table)
+        
+        right_widget = QWidget()
+        right_widget.setLayout(right_section)
+        content_layout.addWidget(right_widget, 1)
+        
+        layout.addLayout(content_layout)
+        
+        # Boutons
+        buttons_layout = QHBoxLayout()
+        close_btn = QPushButton("Fermer")
+        close_btn.clicked.connect(self.accept)
+        buttons_layout.addStretch()
+        buttons_layout.addWidget(close_btn)
+        layout.addLayout(buttons_layout)
+        
+        self.setLayout(layout)
+    
+    def load_data(self):
+        """Charger les données du journal de bord et des tâches"""
+        if not self.db or not self.group_id or not self.student_id:
+            return
+        
+        try:
+            # Récupérer le projet principal
+            groups = self.db.get_group_by_id(self.group_id)
+            if not groups:
+                return
+            
+            project_id = groups[1]
+            project = self.db.get_project(project_id)
+            
+            if not project:
+                return
+            
+            # Charger le journal de bord
+            self._load_journal_de_bord(project)
+            
+            # Charger les tâches GANTT
+            self._load_tasks_gantt(project)
+            
+        except Exception as e:
+            print(f"[ERROR] Erreur lors du chargement des données: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _load_journal_de_bord(self, project):
+        """Charger les dates du journal de bord avec leur contenu"""
+        try:
+            dest_dir = project[6]  # dest_directory
+            if not dest_dir or not os.path.isdir(dest_dir):
+                return
+            
+            group_info = self.db.get_group_by_id(self.group_id)
+            if not group_info:
+                return
+            
+            group_number = group_info[2]
+            dir_name, _ = self.db.get_group_directory(self.group_id)
+            if not dir_name:
+                dir_name = f"T{group_number:02d}"
+            
+            students_in_group = self.db.get_students_in_group(self.group_id)
+            student_info = next((s for s in students_in_group if s[0] == self.student_id), None)
+            
+            if not student_info:
+                return
+            
+            student_firstname = student_info[1]
+            student_lastname = student_info[2]
+            
+            # Construire les variantes de noms possibles
+            base_name_variants = [
+                student_firstname,
+                student_lastname,
+                f"{student_firstname} {student_lastname}",
+                f"{student_lastname} {student_firstname}",
+            ]
+            
+            group_dir_path = os.path.join(dest_dir, dir_name)
+            
+            # Chercher le fichier journal de bord
+            odt_file_path = self._find_journal_file(group_dir_path, base_name_variants)
+            
+            if not odt_file_path:
+                self.journal_table.setRowCount(1)
+                item = QTableWidgetItem("Aucun journal de bord trouvé")
+                self.journal_table.setItem(0, 0, item)
+                return
+            
+            # Extraire les données du journal
+            table_data = self._extract_odt_table(odt_file_path)
+            
+            if not table_data:
+                self.journal_table.setRowCount(1)
+                item = QTableWidgetItem("Table ODT non trouvée ou vide")
+                self.journal_table.setItem(0, 0, item)
+                return
+            
+            self.journal_table.setRowCount(len(table_data))
+            
+            for row, (date_str, content) in enumerate(table_data):
+                date_item = QTableWidgetItem(date_str)
+                date_item.setFlags(date_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.journal_table.setItem(row, 0, date_item)
+                
+                # Créer un widget avec QLabel pour pouvoir utiliser setWordWrap
+                content_widget = QWidget()
+                content_layout = QVBoxLayout()
+                content_layout.setContentsMargins(2, 2, 2, 2)
+                content_label = QLabel(content)
+                content_label.setWordWrap(True)
+                content_layout.addWidget(content_label)
+                content_widget.setLayout(content_layout)
+                
+                self.journal_table.setCellWidget(row, 1, content_widget)
+            
+            self.journal_table.resizeRowsToContents()
+            
+        except Exception as e:
+            print(f"[ERROR] Erreur _load_journal_de_bord: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _load_tasks_gantt(self, project):
+        """Charger les tâches GANTT avec leurs pourcentages"""
+        try:
+            dest_dir = project[6]  # dest_directory
+            if not dest_dir or not os.path.isdir(dest_dir):
+                return
+            
+            group_info = self.db.get_group_by_id(self.group_id)
+            if not group_info:
+                return
+            
+            group_number = group_info[2]
+            dir_name, _ = self.db.get_group_directory(self.group_id)
+            if not dir_name:
+                dir_name = f"T{group_number:02d}"
+            
+            group_dir_path = os.path.join(dest_dir, dir_name)
+            
+            # Récupérer le chemin du fichier GANTT
+            gantt_file_path = self.attendance_tab.get_gantt_file_path(group_dir_path, project[0])
+            
+            if not os.path.isfile(gantt_file_path):
+                self.tasks_table.setRowCount(1)
+                item = QTableWidgetItem("Fichier GANTT non trouvé")
+                self.tasks_table.setItem(0, 0, item)
+                return
+            
+            # Parser le fichier GANTT
+            from mindview_parser import MindViewParser
+            parser = MindViewParser(gantt_file_path)
+            
+            if not parser.parse():
+                self.tasks_table.setRowCount(1)
+                item = QTableWidgetItem("Impossible de parser le fichier GANTT")
+                self.tasks_table.setItem(0, 0, item)
+                return
+            
+            # Récupérer les pourcentages des tâches
+            task_percentages = parser.get_task_percentages()
+            
+            if not task_percentages:
+                self.tasks_table.setRowCount(1)
+                item = QTableWidgetItem("Aucune tâche trouvée")
+                self.tasks_table.setItem(0, 0, item)
+                return
+            
+            self.tasks_table.setRowCount(len(task_percentages))
+            
+            for row, task in enumerate(task_percentages):
+                task_name = task.get('name', 'Unknown')
+                task_percent = task.get('percent', 0)
+                
+                name_item = QTableWidgetItem(task_name)
+                name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.tasks_table.setItem(row, 0, name_item)
+                
+                percent_item = QTableWidgetItem(f"{task_percent}%")
+                percent_item.setFlags(percent_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                percent_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.tasks_table.setItem(row, 1, percent_item)
+            
+            self.tasks_table.resizeRowsToContents()
+            
+        except Exception as e:
+            print(f"[ERROR] Erreur _load_tasks_gantt: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _find_journal_file(self, directory_path, base_name_variants):
+        """Chercher le fichier journal de bord dans le répertoire"""
+        try:
+            if not os.path.isdir(directory_path):
+                return None
+            
+            files = os.listdir(directory_path)
+            
+            # Chercher un fichier commençant par "JOURNAL DE BORD"
+            for filename in files:
+                if filename.upper().startswith("JOURNAL DE BORD") and filename.lower().endswith(".odt"):
+                    full_path = os.path.join(directory_path, filename)
+                    if os.path.isfile(full_path):
+                        return full_path
+            
+            return None
+        except Exception as e:
+            print(f"[ERROR] Erreur _find_journal_file: {e}")
+            return None
+    
+    def _extract_odt_table(self, odt_file_path):
+        """Extraire un tableau d'un fichier ODT"""
+        try:
+            with zipfile.ZipFile(odt_file_path, 'r') as odtzip:
+                xml_content = odtzip.read('content.xml')
+                root = ET.fromstring(xml_content)
+                
+                namespaces = {
+                    'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0',
+                    'text': 'urn:oasis:names:tc:opendocument:xmlns:text:1.0'
+                }
+                
+                tables = root.findall('.//table:table', namespaces)
+                
+                if not tables:
+                    return []
+                
+                table = tables[0]
+                rows = table.findall('.//table:table-row', namespaces)
+                
+                extracted_data = []
+                
+                for row_idx, row in enumerate(rows):
+                    if row_idx == 0:  # Sauter l'en-tête
+                        continue
+                    
+                    cells = row.findall('.//table:table-cell', namespaces)
+                    
+                    if len(cells) < 2:
+                        continue
+                    
+                    date_cell = cells[0]
+                    date_texts = date_cell.findall('.//text:p', namespaces)
+                    date_str = ''.join([''.join(t.itertext()) for t in date_texts]).strip()
+                    
+                    work_cell = cells[1]
+                    work_texts = work_cell.findall('.//text:p', namespaces)
+                    work_str = ''.join([''.join(t.itertext()) for t in work_texts]).strip()
+                    
+                    if date_str:
+                        extracted_data.append((date_str, work_str))
+                
+                return extracted_data
+        
+        except Exception as e:
+            print(f"[ERROR] Erreur lors de l'extraction du tableau ODT : {e}")
+            import traceback
+            traceback.print_exc()
+            return []
 
 
 class RatingCategoryDialog(QDialog):

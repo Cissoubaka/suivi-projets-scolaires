@@ -14,6 +14,58 @@ from PyQt6.QtGui import QColor, QFont
 from custom_widgets import VerticalHeaderView
 from mindview_parser import MindViewParser
 from tabs.base import TabBase
+from dialogs import DialogueJournalDeBord
+
+
+class ClickableNameCell(QWidget):
+    """Cellule cliquable pour afficher le nom de l'élève avec double-clic"""
+    
+    def __init__(self, text="", group_id=None, student_id=None, student_name="", 
+                 db=None, attendance_tab=None, parent=None):
+        super().__init__(parent)
+        self.text = text
+        self.group_id = group_id
+        self.student_id = student_id
+        self.student_name = student_name
+        self.db = db
+        self.attendance_tab = attendance_tab
+        self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        
+        layout = QVBoxLayout()
+        layout.setContentsMargins(2, 2, 2, 2)
+        self.label = QLabel(text)
+        layout.addWidget(self.label)
+        self.setLayout(layout)
+    
+    def mouseDoubleClickEvent(self, event):
+        """Gérer le double-clic"""
+        if self.student_id and self.group_id and self.db and self.attendance_tab:
+            try:
+                dlg = DialogueJournalDeBord(
+                    parent=self.window(),
+                    student_name=self.student_name,
+                    group_id=self.group_id,
+                    student_id=self.student_id,
+                    db=self.db,
+                    attendance_tab=self.attendance_tab
+                )
+                dlg.exec()
+            except Exception as e:
+                print(f"[ERROR] Erreur lors de l'ouverture du dialogue: {e}")
+                import traceback
+                traceback.print_exc()
+        event.accept()
+    
+    def enterEvent(self, event):
+        """Afficher le curseur pointeur en survolant"""
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        event.accept()
+    
+    def leaveEvent(self, event):
+        """Réinitialiser le curseur en quittant"""
+        self.setCursor(Qt.CursorShape.ArrowCursor)
+        event.accept()
 
 
 class AttendanceTab(TabBase):
@@ -460,10 +512,20 @@ class AttendanceTab(TabBase):
             group_item.setBackground(bg_color)
             table.setItem(row, 0, group_item)
             
-            name_item = QTableWidgetItem(student_name)
-            name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            name_item.setBackground(bg_color)
-            table.setItem(row, 1, name_item)
+            # Créer une cellule cliquable pour le nom de l'élève
+            name_cell = ClickableNameCell(
+                text=student_name,
+                group_id=group_id,
+                student_id=student_id,
+                student_name=student_name,
+                db=self.db,
+                attendance_tab=self,
+                parent=table
+            )
+            name_cell.setStyleSheet(f"background-color: {bg_color.name()};")
+            
+            # Utiliser setCellWidget pour la colonne nom
+            table.setCellWidget(row, 1, name_cell)
             
             self.attendance_checkboxes[group_id][student_id] = {}
             self.attendance_spinboxes[group_id][student_id] = {}
