@@ -5,120 +5,74 @@ Enseignant en STI2D en spécialité IT, j'avais besoin d'une application qui per
 
 ## Fonctionnalités
 
-- ✅ Créer et gérer des projets scolaires
-- ✅ Définir le nombre de répétitions d'un projet
-- ✅ Configurer la taille des groupes (binômes, trinômes, etc.)
-- ✅ Gérer une liste d'élèves
-- ✅ Répartition **manuelle** des élèves dans les groupes
-- Création des taches et de leur notation
-- ✅ Créer les groupes automatiquement
-- configuration des répertoires
-- ✅ Export en LibreOffice Calc (.ods) directement dans le repertoire de travail des eleves
-- ✅ Persistance des données (SQLite)
+- Créer et gérer des projets scolaires
+- Définir le nombre de répétitions d'un projet
+- Configurer la taille des groupes (binômes, trinômes, etc.)
+- Gérer une liste d'élèves
+- Répartition **manuelle** des élèves dans les groupes
+- Création des tâches et de leur notation
+- Créer les groupes automatiquement
+- Configuration des répertoires
+- Export en LibreOffice Calc (.ods) directement dans le répertoire de travail des élèves
+- Persistance des données (SQLite)
 - Suivi de présence et évaluation par séance (journal de bord, GANTT, travail)
-- Evaluation de toutes les taches
+- Évaluation de toutes les tâches
 
-
-## Installation
-
-### Prérequis
-- Python 3.7+
-- pip
-
-### Étapes
-
-1. **Cloner ou télécharger le projet :**
-```bash
-cd suivi_projet
-```
-
-2. **Créer un environnement virtuel (recommandé) :**
-```bash
-python3 -m venv venv
-source venv/bin/activate  # Linux/Mac
-# ou
-venv\Scripts\activate  # Windows
-```
-
-3. **Installer les dépendances :**
-```bash
-pip install -r requirements.txt
-```
 
 ## Utilisation
-
-### Démarrer l'application
-
-```bash
-cd app
-python3 main.py
-```
 
 ### Workflow type
 
 1. **Gestion des Projets** ⚙️
    - Ajouter les projets scolaires
    - Définir le nombre de répétitions (ex: 3 groupes qui font le même projet)
-   - Configurer la taille des groupes (2 = binôme, 3 = trinôme)
+   - Configurer le nombre de groupes (2 = binôme, 3 = trinôme)
+   - Définir le chemin d'origine des fichiers du projet
+   - Définir la racine du chemin des répertoires des projets élèves
+   - Copier tous les fichiers du projet dans les répertoires des projets élèves
+```
+/
+├── IT/
+    ├── Projet01          # répertoire du premier groupe
+    ├── Projet02          # répertoire du deuxième groupe
+    ├── Projet03          # répertoire du troisième groupe
+    └── Projet04          # répertoire du quatrième groupe
+```
 
 2. **Gestion des Élèves** 👥
-   - Ajouter tous les élèves
-   - Optionnel : ajouter leurs emails
+   - Créer des classes
+   - Ajouter des élèves à chaque classe
+   - Importation de fichier CSV de Pronote pour ajouter tous les élèves d'une classe
 
 3. **Répartition des Groupes** 📝
    - Sélectionner un projet
-   - Cliquer sur "Créer les Groupes" (création automatique)
+   - Cliquer sur "Créer les Groupes" (création automatique du nombre défini dans le projet)
    - **Drag & Drop Manuel** : Ajouter/retirer des élèves dans les groupes
+   - Double-clic pour ajouter l'élève dans le groupe
    - Les élèves non assignés apparaissent dans la colonne de droite
+   
+4. **Barème** 👥
+   - Créer des catégories/tâches avec 3 niveaux de profondeur
+   - Affectation d'une note par catégories
+   - S'il y a des catégories enfants, la note de la catégorie parente est le total de celles enfants
+   
+5. **Répartition des tâches** 👥
+   - Choix de qui fait quoi dans le groupe en cochant ou décochant la case
+ 
+6. **Suivi des présences et activités** 👥
+   - Ajout de séance de travail avec 3 éléments évalués: le journal de bord, le diagramme de GANTT et le travail
+   - Sélection du barème par éléments évalués
+   - case de présence ou absence
+   - note de suivi
 
-4. **Export** 📊
-   - Exporter le projet courant ou tous les projets
-   - Les fichiers Excel sont créés dans le dossier courant
+7. **Évaluation** 👥
+   - Pour chaque tâche (définie dans l'onglet barème) affectée à l'élève (défini à l'onglet répartition des tâches), on lui met une note
 
-## Structure du Projet
 
-```
-suivi_projet/
-├── app/
-│   ├── main.py              # Point d'entrée
-│   ├── main_window.py       # Interface PyQt5
-│   ├── database.py          # Gestion de la BD SQLite
-│   ├── export.py            # Export Excel
-│   └── projects.db          # Base de données (créée au 1er lancement)
-├── requirements.txt         # Dépendances Python
-└── README.md               # Ce fichier
-```
-
-## Technologies Utilisées
-
-- **PyQt5** : Interface graphique desktop
-- **SQLite** : Base de données locale
-- **openpyxl** : Export en Excel/LibreOffice Calc
-
-## Fichiers de sortie
-
-Les fichiers Excel exportés sont créés dans le dossier courant avec le format :
-- Projet unique : `NomDuProjet_rep1_20260313_153045.xlsx`
-- Tous les projets : `ALL_PROJECTS_20260313_153045.xlsx`
-
-## Troubleshooting
-
-### "ModuleNotFoundError: No module named 'PyQt5'"
-→ Assurez-vous d'avoir installé les dépendances : `pip install -r requirements.txt`
-
-### L'application ne démarre pas
-→ Vérifiez votre version de Python : `python3 --version` (3.7+ requis)
-
-### Les données ne persistent pas
-→ Vérifiez les permissions d'écriture dans le dossier `/app`
-
-## Développement futur
-
-- [ ] Import d'élèves depuis CSV/Excel
-- [ ] Répartition automatique intelligente
-- [ ] Interface web
-- [ ] Historique des modifications
-- [ ] Statistiques et rapports
+8. **Export** 📊
+   - Exporter le suivi de présence et l'évaluation du groupe sous la forme d'un fichier LibreOffice Calc
+   - Les fichiers Calc sont créés dans le dossier de chaque groupe
+   - Choix d'un préfixe pour le nom ("Evaluation", "Séance")
 
 ## License
 
