@@ -230,7 +230,7 @@ class ExportTab(TabBase):
         
         Stratégie:
         1. Si le chemin du groupe est défini ET existe, l'utiliser
-        2. Sinon, construire avec directory_destination + directory_name
+        2. Sinon, construire avec directory_destination du projet + directory_name
         3. Sinon, retourner "." (répertoire courant)
         """
         group_id = group[0]
@@ -243,10 +243,17 @@ class ExportTab(TabBase):
             if os.path.exists(stored_path):
                 return stored_path
         
-        # Étape 2: Construire le chemin avec directory_destination + directory_name
-        directory_destination = self.db.get_setting("directory_destination", "")
+        # Étape 2: Construire le chemin avec directory_destination du projet + directory_name
+        if self.selected_project_id is None:
+            return "."
         
-        if directory_destination and directory_info and directory_info[0]:
+        project = self.db.get_project(self.selected_project_id)
+        if not project or len(project) <= 6:
+            return "."
+        
+        directory_destination = project[6]  # dest_directory est à l'index 6
+        
+        if directory_destination and os.path.exists(directory_destination) and directory_info and directory_info[0]:
             # directory_info[0] est directory_name (ex: "T01" ou "test_group")
             constructed_path = os.path.join(directory_destination, directory_info[0])
             return constructed_path

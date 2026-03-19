@@ -643,19 +643,32 @@ class DialogueJournalDeBord(QDialog):
             traceback.print_exc()
     
     def _find_journal_file(self, directory_path, base_name_variants):
-        """Chercher le fichier journal de bord dans le répertoire"""
+        """Chercher le fichier journal de bord dans le répertoire, spécifique à l'élève"""
         try:
             if not os.path.isdir(directory_path):
                 return None
             
             files = os.listdir(directory_path)
             
-            # Chercher un fichier commençant par "JOURNAL DE BORD"
-            for filename in files:
-                if filename.upper().startswith("JOURNAL DE BORD") and filename.lower().endswith(".odt"):
-                    full_path = os.path.join(directory_path, filename)
-                    if os.path.isfile(full_path):
-                        return full_path
+            # Chercher un fichier contenant le nom de l'élève
+            for variant in base_name_variants:
+                for filename in files:
+                    filename_upper = filename.upper()
+                    if (filename_upper.startswith("JOURNAL DE BORD") and 
+                        variant.upper() in filename_upper and 
+                        filename.lower().endswith(".odt")):
+                        full_path = os.path.join(directory_path, filename)
+                        if os.path.isfile(full_path):
+                            return full_path
+            
+            # Fallback : chercher un fichier commençant par "JOURNAL DE BORD" s'il n'y en a qu'un
+            # (pour compatibilité avec les anciens fichiers)
+            matching_files = [f for f in files 
+                            if f.upper().startswith("JOURNAL DE BORD") and f.lower().endswith(".odt")]
+            if len(matching_files) == 1:
+                full_path = os.path.join(directory_path, matching_files[0])
+                if os.path.isfile(full_path):
+                    return full_path
             
             return None
         except Exception as e:
