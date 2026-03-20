@@ -13,10 +13,20 @@ Application desktop Python (PyQt5) permettant de gérer des projets scolaires av
 
 ```
 app/
-├── main.py              # Point d'entrée - Lance la fenêtre principale
-├── main_window.py       # Interface PyQt5 avec 4 onglets
-├── database.py          # Couche de données SQLite
-└── export.py            # Export vers Excel (openpyxl)
+├── main.py                     # Point d'entrée - Lance l'application principale
+├── main_window.py              # Interface PyQt5 avec les onglets de gestion
+├── database.py                 # Couche de données SQLite
+├── export.py                   # Export vers Excel (openpyxl)
+├── viewer_main.py              # Point d'entrée - Lance la visionneuse
+├── viewer_window.py            # Fenêtre de la visionneuse (3 onglets)
+├── viewer_base_tab.py          # Classe de base pour onglets visionneuse
+├── viewer_attendance_tab.py    # Onglet suivi présence (lecture seule)
+├── viewer_evaluation_tab.py    # Onglet évaluation (lecture seule)
+├── viewer_task_assignment_tab.py # Onglet répartition tâches (lecture seule)
+└── tabs/
+    ├── projects_tab.py         # Onglet gestion des projets
+    ├── students_tab.py         # Onglet gestion des élèves
+    └── ...autres onglets...
 ```
 
 ### Flux de données
@@ -27,20 +37,43 @@ app/
 
 ## Fonctionnalités implémentées
 
+### Application Principale (app/main.py)
 - ✅ Onglet 1 : Gestion des projets (CRUD)
 - ✅ Onglet 2 : Gestion des élèves (CRUD)
 - ✅ Onglet 3 : Répartition manuelle dans les groupes
-- ✅ Onglet 4 : Export en Excel
+- ✅ Onglet 4+ : Suivi de présence, Évaluation, Tâches, etc.
+- ✅ Export en Excel/LibreOffice Calc
 
-## Instruction de démarrage
+### Visionneuse (app/viewer_main.py)
+- ✅ Onglet Suivi de Présence (lecture seule)
+- ✅ Onglet Évaluation (lecture seule)
+- ✅ Onglet Répartition des Tâches (lecture seule)
+- ✅ Même visuel que l'app principale
+- ✅ Aucune modification possible
+- ✅ Destinée aux élèves
 
+## Instructions de démarrage
+
+### Application Principale
 ```bash
 # 1. Environnement Python déjà configuré
-# 2. Dépendances déjà installées (PyQt5, openpyxl)
+# 2. Dépendances déjà installées (PyQt6, openpyxl)
 # 3. Lancer l'application
 cd app
 python3 main.py
 ```
+
+### Visionneuse (Élèves)
+```bash
+# Lancer la visionneuse en lecture seule
+cd app
+python3 viewer_main.py
+
+# Ou utiliser le script de lancement
+./run_viewer.sh
+```
+
+**Note**: La visionneuse utilise la même base de données que l'app principale.
 
 ## Conventions de code
 
@@ -61,10 +94,18 @@ La BD est créée automatiquement au premier lancement.
 
 ## Points d'extension/amélioration future
 
+### Application Principale
 - Import CSV/Excel d'élèves
 - Algorithme de répartition automatique
 - Interface web (Flask)
 - Statistiques et rapports
+
+### Visionneuse
+- Authentification des élèves
+- Affichage personnalisé (données personnelles seulement)
+- Export en PDF
+- Comparaison anonyme avec les pairs
+- Diagrammes de progression
 
 ## Notes importantes
 
