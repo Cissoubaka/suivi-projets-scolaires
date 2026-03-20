@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from dialogs import StudentDialog
 from tabs.base import TabBase
+from security import SecurityValidator
 
 
 class StudentsTab(TabBase):
@@ -133,6 +134,12 @@ class StudentsTab(TabBase):
             QMessageBox.warning(self.parent, "Erreur", "Veuillez entrer un nom de classe !")
             return
         
+        # Valider le nom de la classe
+        is_valid, error_msg = SecurityValidator.validate_class_name(class_name)
+        if not is_valid:
+            QMessageBox.warning(self.parent, "Erreur", error_msg)
+            return
+        
         class_id = self.db.add_class(class_name)
         if class_id is None:
             QMessageBox.warning(self.parent, "Erreur", f"La classe '{class_name}' existe déjà !")
@@ -152,6 +159,12 @@ class StudentsTab(TabBase):
         
         if not new_name:
             QMessageBox.warning(self.parent, "Erreur", "Veuillez entrer un nouveau nom !")
+            return
+        
+        # Valider le nouveau nom de classe
+        is_valid, error_msg = SecurityValidator.validate_class_name(new_name)
+        if not is_valid:
+            QMessageBox.warning(self.parent, "Erreur", error_msg)
             return
         
         if self.db.rename_class(self.current_class_id, new_name):

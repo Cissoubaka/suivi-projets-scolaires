@@ -5,6 +5,7 @@ from odf.opendocument import OpenDocumentSpreadsheet
 from odf.table import Table, TableRow, TableCell
 from odf.text import P
 import os
+from security import SecurityValidator
 
 class ExcelExporter:
     def __init__(self, db):
@@ -188,6 +189,9 @@ class ODSExporter:
         group_num = group[2]
         project = self.db.get_project(project_id)
         
+        # Sanitiser le préfixe du nom de fichier
+        prefix = SecurityValidator.sanitize_filename(prefix, max_length=50)
+        
         # Déterminer le chemin de destination
         if dest_path is None or dest_path == ".":
             dest_path = os.getcwd()
@@ -199,9 +203,10 @@ class ODSExporter:
         if not os.path.exists(dest_path):
             os.makedirs(dest_path, exist_ok=True)
         
-        # Créer le nom du fichier
+        # Créer le nom du fichier de manière sécurisée
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         file_name = f"{prefix}_Groupe{group_num}_{timestamp}.ods"
+        file_name = SecurityValidator.sanitize_filename(file_name, max_length=200)
         file_path = os.path.join(dest_path, file_name)
         
         # Créer le document ODS

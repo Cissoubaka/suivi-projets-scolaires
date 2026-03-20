@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
     QLineEdit, QListWidget, QMessageBox, QGroupBox
 )
 from tabs.base import TabBase
+from security import SecurityValidator
 
 
 class ExportTab(TabBase):
@@ -189,6 +190,12 @@ class ExportTab(TabBase):
             return
         
         prefix = self.filename_prefix.text() or "Evaluation"
+        
+        # Valider le préfixe du nom de fichier
+        is_valid, error_msg = SecurityValidator.validate_filename_prefix(prefix)
+        if not is_valid:
+            QMessageBox.warning(self.parent, "Erreur", f"Préfixe invalide : {error_msg}")
+            return
         
         try:
             groups = self.db.get_groups_for_project(self.selected_project_id)

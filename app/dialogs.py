@@ -7,10 +7,11 @@ import xml.etree.ElementTree as ET
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
     QTextEdit, QSpinBox, QMessageBox, QFileDialog, QComboBox, QTableWidget,
-    QTableWidgetItem, QScrollArea, QWidget
+    QTableWidgetItem, QWidget
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
+from security import SecurityValidator
 
 
 class ProjectDialog(QDialog):
@@ -165,6 +166,19 @@ class ProjectDialog(QDialog):
         )
         dialog.exec()
 
+    def accept(self):
+        """Valider les données avant d'accepter le dialogue"""
+        name = self.name_input.text()
+        
+        # Valider le nom du projet
+        is_valid, error_msg = SecurityValidator.validate_project_name(name)
+        if not is_valid:
+            QMessageBox.warning(self, "Erreur", error_msg)
+            return
+        
+        # Appeler la méthode accept() parente
+        super().accept()
+    
     def get_data(self):
         return {
             'name': self.name_input.text(),
@@ -385,6 +399,25 @@ class StudentDialog(QDialog):
         layout.addLayout(buttons_layout)
 
         self.setLayout(layout)
+
+    def accept(self):
+        """Valider les données avant d'accepter le dialogue"""
+        firstname = self.firstname_input.text()
+        lastname = self.lastname_input.text()
+        
+        # Valider les noms
+        is_valid, error_msg = SecurityValidator.validate_student_name(firstname)
+        if not is_valid:
+            QMessageBox.warning(self, "Erreur", f"Prénom invalide : {error_msg}")
+            return
+        
+        is_valid, error_msg = SecurityValidator.validate_student_name(lastname)
+        if not is_valid:
+            QMessageBox.warning(self, "Erreur", f"Nom invalide : {error_msg}")
+            return
+        
+        # Appeler la méthode accept() parente
+        super().accept()
 
     def get_data(self):
         return {
