@@ -91,7 +91,11 @@ class EvaluationTab(TabBase):
         layout.addWidget(save_btn)
 
         widget.setLayout(layout)
-        self.refresh_data()
+        
+        # Retarder le chargement des données avec QTimer
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(100, self.refresh_data)
+        
         return widget
 
     def refresh_data(self):

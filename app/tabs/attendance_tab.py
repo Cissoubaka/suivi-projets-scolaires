@@ -248,7 +248,12 @@ class AttendanceTab(TabBase):
             layout.addWidget(save_btn)
 
             widget.setLayout(layout)
-            self.refresh_data()
+            
+            # NE PAS appeler refresh_data() ici - le faire quand l'onglet devient visible
+            # Utiliser QTimer pour charger les données après le rendu initial
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(100, self.refresh_data)
+            
             return widget
         except Exception as e:
             print(f"[ERROR] create_widget: {e}")
@@ -573,7 +578,7 @@ class AttendanceTab(TabBase):
                 spinbox_layout.addWidget(gantt_spin)
                 
                 comportement_spin = QSpinBox()
-                comportement_spin.setMinimum(0)
+                comportement_spin.setMinimum(-20)
                 comportement_spin.setMaximum(max_comportement if max_comportement > 0 else 20)
                 comportement_spin.setValue(travail_comportement if is_present else 0)
                 comportement_spin.setToolTip(f"Travail/comportement (max: {max_comportement})")

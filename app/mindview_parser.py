@@ -92,12 +92,12 @@ class MindViewParser:
         
         task_elements = []
         
-        print(f"\n[MVDX DEBUG] Extraction des tâches (format MindView)...")
+        
         
         # En MindView, les tâches sont dans des éléments <branch>
         # Chercher tous les éléments branch
         for branch_elem in self.root.findall('.//branch'):
-            print(f"\n[MVDX DEBUG] Traitement branch {branch_elem.get('OId', 'unknown')}")
+        
             
             # Extraire le nom de la tâche depuis branchtext > properties.list > p[@n="branchtext.text"]
             task_name = "Unknown"
@@ -140,7 +140,7 @@ class MindViewParser:
                 print(f"  ✓ Tâche ajoutée: {task_name} ({task_percent}%)")
         
         self.tasks = task_elements
-        print(f"\n[MVDX DEBUG] {len(self.tasks)} tâches extraites")
+
         for i, task in enumerate(self.tasks):
             print(f"  [{i}] {task['name']}: {task['percent']}%")
     
