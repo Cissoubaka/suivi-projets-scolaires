@@ -299,15 +299,15 @@ class Database:
             # 1. Renommer les anciennes tables
             try:
                 cursor.execute('ALTER TABLE rating_categories RENAME TO rating_categories_old')
-            except:
+            except Exception:
                 pass
             try:
                 cursor.execute('ALTER TABLE rating_subcategories RENAME TO rating_subcategories_old')
-            except:
+            except Exception:
                 pass
             try:
                 cursor.execute('ALTER TABLE rating_subsubcategories RENAME TO rating_subsubcategories_old')
-            except:
+            except Exception:
                 pass
             
             # 2. Créer la nouvelle table unifiée (après avoir renommé l'ancienne)
@@ -946,7 +946,7 @@ class Database:
                 INSERT INTO student_rating_assignments (student_id, group_id, category_id, assigned)
                 VALUES (?, ?, ?, ?)
             ''', (student_id, group_id, category_id, assigned))
-        except:
+        except Exception:
             # Si elle existe déjà, mettre à jour
             cursor.execute('''
                 UPDATE student_rating_assignments SET assigned = ? 
@@ -1015,7 +1015,7 @@ class Database:
                         INSERT INTO student_rating_assignments (student_id, group_id, category_id, assigned)
                         VALUES (?, ?, ?, 1)
                     ''', (student_id, group_id, category_id))
-                except:
+                except Exception:
                     pass  # Déjà existante
         
         conn.commit()
@@ -1463,7 +1463,7 @@ class Database:
                         INSERT INTO student_evaluations (student_id, group_id, category_id, evaluation_note)
                         VALUES (?, ?, ?, 0)
                     ''', (student_id, group_id, category_id))
-                except:
+                except Exception:
                     pass  # Déjà existante
         
         conn.commit()
