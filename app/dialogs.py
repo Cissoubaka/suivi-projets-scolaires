@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem, QWidget
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QColor
 from security import SecurityValidator
 
 
@@ -430,20 +430,21 @@ class DialogueJournalDeBord(QDialog):
     """Dialogue pour afficher le journal de bord et les tâches d'un élève par date"""
     
     def __init__(self, parent=None, student_name="", group_id=None, student_id=None, 
-                 db=None, attendance_tab=None):
+                 db=None, attendance_tab=None, session_date_id=None):
         super().__init__(parent)
         self.student_name = student_name
         self.group_id = group_id
         self.student_id = student_id
         self.db = db
         self.attendance_tab = attendance_tab
+        self.session_date_id = session_date_id
         self.init_ui()
         self.load_data()
     
     def init_ui(self):
         """Initialiser l'interface du dialogue"""
         self.setWindowTitle(f"Journal de bord - {self.student_name}")
-        self.setGeometry(100, 100, 1200, 700)
+        self.setGeometry(100, 50, 1400, 900)
         
         layout = QVBoxLayout()
         
@@ -476,20 +477,19 @@ class DialogueJournalDeBord(QDialog):
         
         # --- SECTION DROITE : TÂCHES ---
         right_section = QVBoxLayout()
-        right_section.addWidget(QLabel("Tâches et pourcentages :"))
+        right_section.addWidget(QLabel("Tâches et pourcentages par séance (colonnes = séances mémorisées) :"))
         
         self.tasks_table = QTableWidget()
-        self.tasks_table.setColumnCount(2)
-        self.tasks_table.setHorizontalHeaderLabels(["Tâche", "Pourcentage"])
+        self.tasks_table.setColumnCount(1)  # Commencer avec 1 colonne (Tâche), d'autres seront ajoutées dynamiquement
+        self.tasks_table.setHorizontalHeaderLabels(["Tâche"])
         self.tasks_table.setColumnWidth(0, 250)
-        self.tasks_table.setColumnWidth(1, 100)
         right_section.addWidget(self.tasks_table)
         
         right_widget = QWidget()
         right_widget.setLayout(right_section)
         content_layout.addWidget(right_widget, 1)
         
-        layout.addLayout(content_layout)
+        layout.addLayout(content_layout, 1)
         
         # Boutons
         buttons_layout = QHBoxLayout()
@@ -608,8 +608,10 @@ class DialogueJournalDeBord(QDialog):
             traceback.print_exc()
     
     def _load_tasks_gantt(self, project):
-        """Charger les tâches GANTT avec leurs pourcentages"""
+        """Charger les tâches GANTT avec leurs pourcentages actuels et historiques"""
         try:
+            import json
+            
             dest_dir = project[6]  # dest_directory
             if not dest_dir or not os.path.isdir(dest_dir):
                 return
@@ -644,7 +646,7 @@ class DialogueJournalDeBord(QDialog):
                 self.tasks_table.setItem(0, 0, item)
                 return
             
-            # Récupérer les pourcentages des tâches
+            # Récupérer les pourcentages des tâches actuels
             task_percentages = parser.get_task_percentages()
             
             if not task_percentages:
@@ -653,20 +655,73 @@ class DialogueJournalDeBord(QDialog):
                 self.tasks_table.setItem(0, 0, item)
                 return
             
+            # Récupérer l'historique des pourcentages pour ce groupe
+            history = self.db.get_all_gantt_check_history(self.group_id)
+            
+            # Construire une liste des entrées historiques avec dates de séance
+            history_entries = []
+            current_session_date = None
+            if history:
+                for record in history:
+                    record_id, session_date_id, percentages_json, verification_date, session_date, date_mismatch = record
+                    try:
+                        percentages_list = json.loads(percentages_json)
+                        # Utiliser la date de la séance comme clé (pas la date de vérification)
+                        date_to_display = session_date if session_date else str(verification_date) if verification_date else "Unknown"
+                        # Ajouter un indicateur si date_mismatch
+                        if date_mismatch == 1:
+                            date_label = f"{date_to_display}\n⚠️ Décalage"
+                        else:
+                            date_label = date_to_display
+                        # Si c'est le premier (le plus récent), c'est la date actuelle
+                        if current_session_date is None:
+                            current_session_date = date_to_display
+                        history_entries.append({
+                            'date': date_to_display,
+                            'date_label': date_label,
+                            'date_mismatch': date_mismatch,
+                            'percentages': {task['name']: task['percent'] for task in percentages_list}
+                        })
+                    except json.JSONDecodeError:
+                        pass
+            
+            # Mettre à jour le nombre de colonnes (Tâche + une par entrée historique)
+            num_columns = 1 + len(history_entries)
+            self.tasks_table.setColumnCount(num_columns)
+            
+            # Créer les headers : "Tâche" + les dates des séances (avec indication de date_mismatch)
+            headers = ["Tâche"] + [entry['date_label'] for entry in history_entries]
+            self.tasks_table.setHorizontalHeaderLabels(headers)
+            
+            # Ajuster la largeur des colonnes
+            self.tasks_table.setColumnWidth(0, 250)
+            for i in range(1, num_columns):
+                self.tasks_table.setColumnWidth(i, 140)
+            
+            # Remplir la table avec les tâches
             self.tasks_table.setRowCount(len(task_percentages))
             
             for row, task in enumerate(task_percentages):
                 task_name = task.get('name', 'Unknown')
                 task_percent = task.get('percent', 0)
                 
+                # Colonne 0 : Nom de la tâche
                 name_item = QTableWidgetItem(task_name)
                 name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.tasks_table.setItem(row, 0, name_item)
                 
-                percent_item = QTableWidgetItem(f"{task_percent}%")
-                percent_item.setFlags(percent_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                percent_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.tasks_table.setItem(row, 1, percent_item)
+                # Colonnes 1 à N : Pourcentages historiques (séances)
+                for col, entry in enumerate(history_entries, start=1):
+                    percent = entry['percentages'].get(task_name, 0)
+                    # Afficher en gris si date_mismatch
+                    if entry['date_mismatch'] == 1:
+                        percent_item = QTableWidgetItem(f"{percent}%\n(décalé)")
+                        percent_item.setBackground(QColor(220, 220, 220))  # Gris clair
+                    else:
+                        percent_item = QTableWidgetItem(f"{percent}%")
+                    percent_item.setFlags(percent_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    percent_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    self.tasks_table.setItem(row, col, percent_item)
             
             self.tasks_table.resizeRowsToContents()
             

@@ -21,7 +21,7 @@ class ClickableNameCell(QWidget):
     """Cellule cliquable pour afficher le nom de l'élève avec double-clic"""
     
     def __init__(self, text="", group_id=None, student_id=None, student_name="", 
-                 db=None, attendance_tab=None, parent=None):
+                 db=None, attendance_tab=None, session_date_id=None, parent=None):
         super().__init__(parent)
         self.text = text
         self.group_id = group_id
@@ -29,6 +29,7 @@ class ClickableNameCell(QWidget):
         self.student_name = student_name
         self.db = db
         self.attendance_tab = attendance_tab
+        self.session_date_id = session_date_id
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         
@@ -47,6 +48,7 @@ class ClickableNameCell(QWidget):
                     student_name=self.student_name,
                     group_id=self.group_id,
                     student_id=self.student_id,
+                    session_date_id=self.session_date_id,
                     db=self.db,
                     attendance_tab=self.attendance_tab
                 )
@@ -1196,6 +1198,8 @@ class AttendanceTab(TabBase):
                 
                 gantt_note = 0
                 status = "missing"
+                date_mismatch_flag = 0
+                current_percentages = None
                 
                 if os.path.isfile(gantt_file_path):
                     try:
@@ -1205,6 +1209,7 @@ class AttendanceTab(TabBase):
                         
                         if file_date is None:
                             status = "date_error"
+                            date_mismatch_flag = 1
                         else:
                             # Extraire la date en s'assurant du format
                             if isinstance(file_date, str):
@@ -1223,54 +1228,66 @@ class AttendanceTab(TabBase):
                             if file_date is None:
                                 status = "date_conversion_error"
                                 gantt_note = 0
+                                date_mismatch_flag = 1
                             else:
                                 file_date_only = file_date
                                 
-                                # Comparaison strict : date doit correspondre à la dernière séance
-                                if file_date_only != session_date:
-                                    gantt_note = 0
-                                    status = "date_mismatch"
-                                else:
-                                    # Date OK, vérifier la progression
-                                    if parser.parse():
-                                        current_percentages = parser.get_task_percentages()
-                                        
-                                        # Récupérer l'historique précédent
-                                        previous_check = self.db.get_latest_gantt_check_history(project_id, group_id)
+                                # Essayer de parser le fichier d'abord pour récupérer les pourcentages
+                                if parser.parse():
+                                    current_percentages = parser.get_task_percentages()
+                                    
+                                    # Vérifier la correspondance de date
+                                    if file_date_only != session_date:
+                                        # Date ne correspond pas, mais on sauvegarde les pourcentages quand même
+                                        gantt_note = 0
+                                        status = "date_mismatch"
+                                        date_mismatch_flag = 1
+                                    else:
+                                        # Date OK, vérifier la progression
+                                        date_mismatch_flag = 0
                                         
                                         if not current_percentages:
                                             status = "no_tasks"
                                             gantt_note = 0
-                                        elif previous_check is None:
-                                            # Vérifier si au moins un pourcentage a changé (% > 0)
-                                            any_percentage_changed = any(task.get('percent', 0) > 0 for task in current_percentages)
-                                            
-                                            if any_percentage_changed:
-                                                gantt_note = max_gantt
-                                                status = "first_check_progress_detected"
-                                            else:
-                                                gantt_note = 0
-                                                status = "first_check_no_progress"
                                         else:
-                                            prev_percentages_json, _, _ = previous_check
-                                            prev_percentages = json.loads(prev_percentages_json)
+                                            # Récupérer l'historique précédent
+                                            previous_check = self.db.get_latest_gantt_check_history(project_id, group_id)
                                             
-                                            # Vérifier si au moins un pourcentage a changé (% > 0)
-                                            any_percentage_changed = any(task.get('percent', 0) > 0 for task in current_percentages)
-                                            
-                                            if any_percentage_changed:
-                                                gantt_note = max_gantt
-                                                status = "progress_detected"
+                                            if previous_check is None:
+                                                # Vérifier si au moins un pourcentage a changé (% > 0)
+                                                any_percentage_changed = any(task.get('percent', 0) > 0 for task in current_percentages)
+                                                
+                                                if any_percentage_changed:
+                                                    gantt_note = max_gantt
+                                                    status = "first_check_progress_detected"
+                                                else:
+                                                    gantt_note = 0
+                                                    status = "first_check_no_progress"
                                             else:
-                                                gantt_note = 0
-                                                status = "no_progress"
-                                        
-                                        # Sauvegarder l'historique pour les futures vérifications
+                                                prev_percentages_json, _, _ = previous_check
+                                                prev_percentages = json.loads(prev_percentages_json)
+                                                
+                                                # Vérifier si au moins un pourcentage a changé (% > 0)
+                                                any_percentage_changed = any(task.get('percent', 0) > 0 for task in current_percentages)
+                                                
+                                                if any_percentage_changed:
+                                                    gantt_note = max_gantt
+                                                    status = "progress_detected"
+                                                else:
+                                                    gantt_note = 0
+                                                    status = "no_progress"
+                                    
+                                    # Sauvegarder l'historique pour les futures vérifications (si on a des pourcentages)
+                                    if current_percentages:
                                         percentages_json = json.dumps(current_percentages)
-                                        self.db.save_gantt_check_history(project_id, group_id, session_id, percentages_json, gantt_note)
-                                    else:
-                                        status = "parse_error"
-                                        gantt_note = 0
+                                        # UPSERT : remplace si existe déjà pour cette séance
+                                        save_result = self.db.upsert_gantt_check_history(
+                                            project_id, group_id, session_id, percentages_json, gantt_note, date_mismatch_flag
+                                        )
+                                else:
+                                    status = "parse_error"
+                                    gantt_note = 0
+                                    date_mismatch_flag = 0
                     except Exception as e:
                         print(f"[ERROR] Erreur vérification GANTT {dir_name}: {e}")
                         import traceback
@@ -1299,7 +1316,8 @@ class AttendanceTab(TabBase):
                         'group': dir_name,
                         'note': gantt_note,
                         'status': status,
-                        'max': max_gantt
+                        'max': max_gantt,
+                        'session_id': session_id
                     })
                 except Exception as e:
                     print(f"[ERROR] Erreur save notes GANTT pour {dir_name}: {e}")
@@ -1307,7 +1325,8 @@ class AttendanceTab(TabBase):
                         'group': dir_name,
                         'note': 0,
                         'status': 'save_error',
-                        'max': max_gantt
+                        'max': max_gantt,
+                        'session_id': session_id
                     })
             
             # Afficher le résumé
@@ -1334,8 +1353,14 @@ class AttendanceTab(TabBase):
             'missing': '❌',
             'no_tasks': '⚠️',
             'parse_error': '⚠️',
-            'save_error': '⚠️'
+            'save_error': '⚠️',
+            'first_check_progress_detected': '✅',
+            'first_check_no_progress': '❌'
         }
+        
+        # Afficher le session_id au début si disponible
+        if results and 'session_id' in results[0]:
+            msg += f"📅 Session ID utilisée: {results[0]['session_id']}\n\n"
         
         for result in results:
             icon = status_icons.get(result['status'], '?')

@@ -229,31 +229,30 @@ class ODSExporter:
         
         # Titre
         row = TableRow()
-        table.addElement(row)
         cell = TableCell(valuetype="string")
         cell.addElement(P(text=f"Suivi de Présence - Groupe {group_num}"))
         row.addElement(cell)
+        table.addElement(row)
         
         # Info projet
         row = TableRow()
-        table.addElement(row)
         cell = TableCell(valuetype="string")
         cell.addElement(P(text=f"Projet : {project[1]}"))
         row.addElement(cell)
+        table.addElement(row)
         
         # Ligne vide
         row = TableRow()
-        table.addElement(row)
         cell = TableCell(valuetype="string")
         cell.addElement(P(text=""))
         row.addElement(cell)
+        table.addElement(row)
         
         # En-têtes principaux (Élève, Classe, puis dates)
         sessions = self.db.get_session_dates(project[0], repetition)
         
         # Première ligne d'en-têtes: Élève, Classe, puis dates
         row = TableRow()
-        table.addElement(row)
         
         self._add_simple_cell(row, "Élève")
         self._add_simple_cell(row, "Classe")
@@ -268,10 +267,10 @@ class ODSExporter:
         
         # Ajouter une cellule pour le Total Suivi
         self._add_simple_cell(row, "")
+        table.addElement(row)
         
         # Deuxième ligne pour les sous-colonnes d'évaluation
         row = TableRow()
-        table.addElement(row)
         
         self._add_simple_cell(row, "")
         self._add_simple_cell(row, "")
@@ -282,13 +281,13 @@ class ODSExporter:
         
         # Ajouter le label pour le Total Suivi
         self._add_simple_cell(row, "Total Suivi")
+        table.addElement(row)
         
         # Ajouter les élèves et leurs présences/notes
         students = self.db.get_students_in_group(group_id)
         
         for student in students:
             row = TableRow()
-            table.addElement(row)
             
             # Nom élève
             student_name = f"{student[1]} {student[2]}"
@@ -332,6 +331,9 @@ class ODSExporter:
             
             # Total du suivi (somme de toutes les notes)
             self._add_simple_cell(row, str(total_global), valuetype="float", value_attr=total_global)
+            
+            # Ajouter la row complète à la table
+            table.addElement(row)
 
     def _create_evaluation_sheet(self, doc, group_id, group_num, project):
         """Créer l'onglet d'évaluation avec structure hiérarchique"""
@@ -344,24 +346,24 @@ class ODSExporter:
         
         # Titre
         row = TableRow()
-        table.addElement(row)
         cell = TableCell(valuetype="string")
         cell.addElement(P(text=f"Évaluation - Groupe {group_num}"))
         row.addElement(cell)
+        table.addElement(row)
         
         # Info projet
         row = TableRow()
-        table.addElement(row)
         cell = TableCell(valuetype="string")
         cell.addElement(P(text=f"Projet : {project[1]}"))
         row.addElement(cell)
+        table.addElement(row)
         
         # Ligne vide
         row = TableRow()
-        table.addElement(row)
         cell = TableCell(valuetype="string")
         cell.addElement(P(text=""))
         row.addElement(cell)
+        table.addElement(row)
         
         # Récupérer la hiérarchie des catégories
         categories_level1 = self.db.get_rating_categories(project[0])
@@ -387,7 +389,6 @@ class ODSExporter:
         
         # Première ligne d'en-têtes: Catégories niveau 1 et 2
         row = TableRow()
-        table.addElement(row)
         
         self._add_simple_cell(row, "Élève")
         self._add_simple_cell(row, "Classe")
@@ -399,9 +400,10 @@ class ODSExporter:
             # Afficher la hiérarchie Cat1
             self._add_simple_cell(row, f"{cat1_name}")
         
+        table.addElement(row)
+        
         # Deuxième ligne d'en-têtes: Catégories niveau 3
         row = TableRow()
-        table.addElement(row)
         
         # Cellules vides pour Élève, Classe, total_max, TOTAL, Suivi
         for _ in range(5):
@@ -418,11 +420,12 @@ class ODSExporter:
             
             self._add_simple_cell(row, label)
         
+        table.addElement(row)
+        
         # Ajouter les élèves et leurs évaluations
         students = self.db.get_students_in_group(group_id)
         for student in students:
             row = TableRow()
-            table.addElement(row)
             
             # Nom élève
             student_name = f"{student[1]} {student[2]}"
@@ -506,4 +509,7 @@ class ODSExporter:
                     # C'est une catégorie Level 3
                     note = self.db.get_student_evaluation(student[0], group_id, col_id, rating_level=3)
                 self._add_simple_cell(row, str(note) if note > 0 else "", valuetype="float", value_attr=note)
+            
+            # Ajouter la row complète à la table
+            table.addElement(row)
 

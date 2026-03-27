@@ -233,6 +233,13 @@ class Database:
         if 'directory_path' not in columns:
             cursor.execute('ALTER TABLE groups ADD COLUMN directory_path TEXT')
 
+        # Ajouter les colonnes manquantes à la table gantt_check_history si elles n'existent pas
+        cursor.execute("PRAGMA table_info(gantt_check_history)")
+        columns = {row[1] for row in cursor.fetchall()}
+        
+        if 'date_mismatch' not in columns:
+            cursor.execute('ALTER TABLE gantt_check_history ADD COLUMN date_mismatch INTEGER DEFAULT 0')
+
         # Migration: Convertir l'ancienne structure (3 tables) vers la nouvelle (1 table unifiée)
         cursor.execute('''
             PRAGMA table_info(rating_subcategories)
@@ -1273,6 +1280,45 @@ class Database:
             conn.close()
             return None
 
+    def upsert_gantt_check_history(self, project_id, group_id, session_date_id, percentages_json, note_gantt_assigned, date_mismatch=0):
+        """UPSERT l'historique GANTT : UPDATE si existe pour cette séance, sinon INSERT
+        date_mismatch: 0 si date correcte, 1 si date ne correspond pas
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            # Vérifier si une entrée existe déjà pour (project_id, group_id, session_date_id)
+            cursor.execute('''
+                SELECT id FROM gantt_check_history 
+                WHERE project_id = ? AND group_id = ? AND session_date_id = ?
+            ''', (project_id, group_id, session_date_id))
+            existing = cursor.fetchone()
+            
+            if existing:
+                # UPDATE l'entrée existante
+                cursor.execute('''
+                    UPDATE gantt_check_history 
+                    SET percentages_json = ?, note_gantt_assigned = ?, date_mismatch = ?, verification_date = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (percentages_json, note_gantt_assigned, date_mismatch, existing[0]))
+                conn.commit()
+                check_id = existing[0]
+            else:
+                # INSERT nouvelle entrée
+                cursor.execute('''
+                    INSERT INTO gantt_check_history (project_id, group_id, session_date_id, percentages_json, note_gantt_assigned, date_mismatch)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (project_id, group_id, session_date_id, percentages_json, note_gantt_assigned, date_mismatch))
+                conn.commit()
+                check_id = cursor.lastrowid
+            
+            conn.close()
+            return check_id
+        except Exception as e:
+            print(f"[ERROR] Erreur lors de l'upsert de l'historique GANTT: {e}")
+            conn.close()
+            return None
+
     def get_latest_gantt_check_history(self, project_id, group_id):
         """Récupérer le dernier historique de vérification GANTT pour un groupe"""
         conn = self.get_connection()
@@ -1290,6 +1336,46 @@ class Database:
             return result  # (percentages_json, note_gantt_assigned, verification_date)
         except Exception as e:
             print(f"[ERROR] Erreur lors de la récupération de l'historique GANTT: {e}")
+            conn.close()
+            return None
+
+    def get_all_gantt_check_history(self, group_id):
+        """Récupérer tout l'historique de vérification GANTT pour un groupe avec dates de séance"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                SELECT gch.id, gch.session_date_id, gch.percentages_json, gch.verification_date, sd.session_date, gch.date_mismatch
+                FROM gantt_check_history gch
+                LEFT JOIN session_dates sd ON gch.session_date_id = sd.id
+                WHERE gch.group_id = ? 
+                ORDER BY gch.verification_date DESC
+            ''', (group_id,))
+            results = cursor.fetchall()
+            conn.close()
+            return results  # List of (id, session_date_id, percentages_json, verification_date, session_date, date_mismatch)
+        except Exception as e:
+            print(f"[ERROR] Erreur lors de la récupération de l'historique GANTT complet: {e}")
+            conn.close()
+            return []
+
+    def get_session_gantt_history(self, session_date_id, group_id):
+        """Récupérer l'historique GANTT pour une séance et un groupe spécifiques"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                SELECT percentages_json, verification_date
+                FROM gantt_check_history 
+                WHERE session_date_id = ? AND group_id = ?
+                ORDER BY verification_date DESC
+                LIMIT 1
+            ''', (session_date_id, group_id))
+            result = cursor.fetchone()
+            conn.close()
+            return result  # (percentages_json, verification_date)
+        except Exception as e:
+            print(f"[ERROR] Erreur lors de la récupération de l'historique GANTT par séance: {e}")
             conn.close()
             return None
 
