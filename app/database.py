@@ -107,43 +107,6 @@ class Database:
             )
         ''')
 
-        # Tables anciennes (à supprimer après migration)
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS rating_categories_old (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id INTEGER NOT NULL,
-                name TEXT NOT NULL,
-                points INTEGER,
-                order_num INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
-            )
-        ''')
-
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS rating_subcategories_old (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                category_id INTEGER NOT NULL,
-                name TEXT NOT NULL,
-                points INTEGER,
-                order_num INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (category_id) REFERENCES rating_categories_old (id) ON DELETE CASCADE
-            )
-        ''')
-
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS rating_subsubcategories_old (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                subcategory_id INTEGER NOT NULL,
-                name TEXT NOT NULL,
-                points INTEGER NOT NULL,
-                order_num INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (subcategory_id) REFERENCES rating_subcategories_old (id) ON DELETE CASCADE
-            )
-        ''')
-
         # Table d'affectation des catégories aux élèves
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS student_rating_assignments (
@@ -233,12 +196,95 @@ class Database:
         if 'directory_path' not in columns:
             cursor.execute('ALTER TABLE groups ADD COLUMN directory_path TEXT')
 
-        # Ajouter les colonnes manquantes à la table gantt_check_history si elles n'existent pas
-        cursor.execute("PRAGMA table_info(gantt_check_history)")
-        columns = {row[1] for row in cursor.fetchall()}
+        # Table de configuration pour mémoriser les chemins et préférences
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT NOT NULL UNIQUE,
+                value TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Table pour tracker l'historique des vérifications GANTT
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS gantt_check_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                group_id INTEGER NOT NULL,
+                session_date_id INTEGER,
+                percentages_json TEXT,
+                note_gantt_assigned INTEGER DEFAULT 0,
+                date_mismatch INTEGER DEFAULT 0,
+                verification_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE,
+                FOREIGN KEY (group_id) REFERENCES groups (id) ON DELETE CASCADE,
+                FOREIGN KEY (session_date_id) REFERENCES session_dates (id) ON DELETE CASCADE
+            )
+        ''')
+
+        # Table pour l'évaluation des catégories
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS student_evaluations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_id INTEGER NOT NULL,
+                group_id INTEGER NOT NULL,
+                category_id INTEGER NOT NULL,
+                rating_level INTEGER NOT NULL DEFAULT 2,
+                evaluation_note REAL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (student_id) REFERENCES students (id) ON DELETE CASCADE,
+                FOREIGN KEY (group_id) REFERENCES groups (id) ON DELETE CASCADE,
+                FOREIGN KEY (category_id) REFERENCES rating_categories (id) ON DELETE CASCADE,
+                UNIQUE(student_id, group_id, category_id, rating_level)
+            )
+        ''')
+
+        # Ajouter la colonne mindview_file à la table projects si elle n'existe pas
+        try:
+            cursor.execute('ALTER TABLE projects ADD COLUMN mindview_file TEXT')
+        except sqlite3.OperationalError:
+            # La colonne existe déjà, pas d'erreur
+            pass
+
+        # Migration: Vérifier si rating_categories a la colonne 'level' (migrate ancien schéma)
+        cursor.execute("PRAGMA table_info(rating_categories)")
+        rating_categories_columns = {row[1] for row in cursor.fetchall()}
         
-        if 'date_mismatch' not in columns:
-            cursor.execute('ALTER TABLE gantt_check_history ADD COLUMN date_mismatch INTEGER DEFAULT 0')
+        if 'level' not in rating_categories_columns:
+            # L'ancienne table existe mais n'a pas la colonne level -> faire une migration
+            print("[MIGRATION] Mise à jour du schéma de rating_categories...")
+            try:
+                cursor.execute('ALTER TABLE rating_categories RENAME TO rating_categories_old')
+                
+                # 2. Créer la nouvelle table avec le bon schéma
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS rating_categories (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        project_id INTEGER,
+                        level INTEGER DEFAULT 1,
+                        parent_id INTEGER,
+                        name TEXT NOT NULL,
+                        points INTEGER,
+                        order_num INTEGER DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE,
+                        FOREIGN KEY (parent_id) REFERENCES rating_categories (id) ON DELETE CASCADE
+                    )
+                ''')
+                
+                # 3. Copier les données de l'ancienne table (niveau 1 par défaut)
+                cursor.execute('''
+                    INSERT INTO rating_categories (id, project_id, level, parent_id, name, points, order_num, created_at)
+                    SELECT id, project_id, 1, NULL, name, points, order_num, created_at 
+                    FROM rating_categories_old
+                ''')
+                
+                conn.commit()
+                print("[MIGRATION] ✓ Schéma de rating_categories mis à jour avec succès")
+            except Exception as e:
+                print(f"[MIGRATION] Erreur lors de la migration : {e}")
+                conn.rollback()
 
         # Migration: Convertir l'ancienne structure (3 tables) vers la nouvelle (1 table unifiée)
         cursor.execute('''
@@ -321,57 +367,6 @@ class Database:
             
             conn.commit()
             print("[MIGRATION] ✓ Conversion terminée avec succès")
-
-
-        # Table de configuration pour mémoriser les chemins et préférences
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS settings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                key TEXT NOT NULL UNIQUE,
-                value TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-
-        # Table pour tracker l'historique des vérifications GANTT
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS gantt_check_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id INTEGER NOT NULL,
-                group_id INTEGER NOT NULL,
-                session_date_id INTEGER,
-                percentages_json TEXT,
-                note_gantt_assigned INTEGER DEFAULT 0,
-                verification_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE,
-                FOREIGN KEY (group_id) REFERENCES groups (id) ON DELETE CASCADE,
-                FOREIGN KEY (session_date_id) REFERENCES session_dates (id) ON DELETE CASCADE
-            )
-        ''')
-
-        # Table pour l'évaluation des catégories
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS student_evaluations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                student_id INTEGER NOT NULL,
-                group_id INTEGER NOT NULL,
-                category_id INTEGER NOT NULL,
-                rating_level INTEGER NOT NULL DEFAULT 2,
-                evaluation_note REAL DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (student_id) REFERENCES students (id) ON DELETE CASCADE,
-                FOREIGN KEY (group_id) REFERENCES groups (id) ON DELETE CASCADE,
-                FOREIGN KEY (category_id) REFERENCES rating_categories (id) ON DELETE CASCADE,
-                UNIQUE(student_id, group_id, category_id, rating_level)
-            )
-        ''')
-
-        # Ajouter la colonne mindview_file à la table projects si elle n'existe pas
-        try:
-            cursor.execute('ALTER TABLE projects ADD COLUMN mindview_file TEXT')
-        except sqlite3.OperationalError:
-            # La colonne existe déjà, pas d'erreur
-            pass
 
         conn.commit()
         conn.close()
