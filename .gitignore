@@ -57,3 +57,10 @@ logs/
 # Temporary files
 *.tmp
 .env
+
+# Test files
+debug_gantt.py
+test_date_mismatch.py
+test_export_fix.py
+test_export_integration.py
+test_gantt_flow.py
